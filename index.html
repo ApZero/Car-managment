@@ -1,0 +1,1140 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Autogestor — Gestión vehicular</title>
+<meta name="theme-color" content="#13151A">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#13151A;
+  --panel:#1B1E25;
+  --panel-2:#20242C;
+  --line:#2C313B;
+  --accent:#FF9F1C;
+  --accent-dim:#C97D17;
+  --cool:#4FC3D9;
+  --text:#EDEAE3;
+  --text-dim:#9AA0AC;
+  --danger:#E2483D;
+  --warn:#F2B705;
+  --good:#6FCF7C;
+  --radius:12px;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:'Inter',sans-serif;
+  -webkit-font-smoothing:antialiased;
+  padding-bottom:78px;
+  min-height:100vh;
+}
+h1,h2,h3,.display{font-family:'Rajdhani',sans-serif;font-weight:700;letter-spacing:0.02em;}
+.mono{font-family:'JetBrains Mono',monospace;}
+a{color:var(--cool);}
+button{font-family:inherit;cursor:pointer;}
+
+/* Header */
+header.top{
+  position:sticky;top:0;z-index:20;
+  background:linear-gradient(180deg,#16181F 0%, #13151A 100%);
+  border-bottom:1px solid var(--line);
+  padding:14px 16px 10px;
+}
+.brand{display:flex;align-items:center;gap:10px;}
+.brand .mark{
+  width:34px;height:34px;border-radius:8px;
+  background:radial-gradient(circle at 30% 30%, #FFB84D, var(--accent-dim));
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 0 12px rgba(255,159,28,0.35) inset, 0 2px 4px rgba(0,0,0,0.4);
+}
+.brand .mark svg{width:20px;height:20px;}
+.brand h1{font-size:20px;margin:0;line-height:1;text-transform:uppercase;}
+.brand .sub{font-size:11px;color:var(--text-dim);margin-top:1px;letter-spacing:0.04em;}
+.car-chips{display:flex;gap:8px;margin-top:12px;overflow-x:auto;padding-bottom:2px;}
+.car-chips::-webkit-scrollbar{display:none;}
+.chip{
+  flex:0 0 auto;padding:7px 14px;border-radius:20px;
+  background:var(--panel);border:1px solid var(--line);
+  font-size:13px;font-weight:600;color:var(--text-dim);
+  white-space:nowrap;
+}
+.chip.active{background:rgba(255,159,28,0.14);border-color:var(--accent-dim);color:var(--accent);}
+
+main{padding:16px;max-width:720px;margin:0 auto;}
+.section{display:none;}
+.section.active{display:block;animation:fadein .18s ease;}
+@keyframes fadein{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:none;}}
+
+/* Cards */
+.card{
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  padding:16px;
+  margin-bottom:14px;
+}
+.card h3{margin:0 0 12px;font-size:15px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.06em;font-weight:600;}
+
+/* Odometer hero */
+.hero-row{display:flex;gap:12px;margin-bottom:14px;}
+.hero-card{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px;}
+.hero-card .label{font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;}
+.odometer{display:flex;gap:3px;flex-wrap:wrap;}
+.odo-digit{
+  background:#0E0F13;border:1px solid #2A2E36;border-radius:4px;
+  padding:6px 2px;min-width:20px;text-align:center;
+  font-family:'JetBrains Mono',monospace;font-weight:700;font-size:19px;
+  color:var(--accent);text-shadow:0 0 8px rgba(255,159,28,0.5);
+}
+.odo-digit.sep{background:transparent;border:none;color:var(--text-dim);min-width:6px;text-shadow:none;font-size:16px;}
+.odo-unit{font-size:11px;color:var(--text-dim);margin-top:6px;}
+
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:13px;}
+.stat .label{font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.05em;}
+.stat .value{font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;color:var(--text);margin-top:4px;}
+.stat .value.cool{color:var(--cool);}
+
+/* Alerts */
+.alert-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);}
+.alert-item:last-child{border-bottom:none;}
+.dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto;}
+.dot.bad{background:var(--danger);box-shadow:0 0 6px rgba(226,72,61,0.7);}
+.dot.warn{background:var(--warn);box-shadow:0 0 6px rgba(242,183,5,0.6);}
+.dot.good{background:var(--good);}
+.alert-item .txt{flex:1;}
+.alert-item .name{font-weight:600;font-size:14px;}
+.alert-item .meta{font-size:12px;color:var(--text-dim);}
+.empty{color:var(--text-dim);font-size:13px;padding:8px 0;}
+
+/* Lists / feed */
+.feed-item{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);}
+.feed-item:last-child{border-bottom:none;}
+.feed-icon{width:30px;height:30px;border-radius:8px;background:var(--panel-2);display:flex;align-items:center;justify-content:center;flex:0 0 auto;}
+.feed-icon svg{width:15px;height:15px;stroke:var(--cool);}
+.feed-main{flex:1;min-width:0;}
+.feed-main .t1{font-size:13.5px;font-weight:600;}
+.feed-main .t2{font-size:12px;color:var(--text-dim);}
+.feed-cost{font-family:'JetBrains Mono',monospace;font-size:13.5px;font-weight:700;white-space:nowrap;}
+
+/* Buttons */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  padding:11px 16px;border-radius:9px;border:none;
+  font-weight:600;font-size:14px;
+}
+.btn-primary{background:var(--accent);color:#1A1206;}
+.btn-primary:active{background:var(--accent-dim);}
+.btn-ghost{background:var(--panel-2);color:var(--text);border:1px solid var(--line);}
+.btn-danger{background:rgba(226,72,61,0.14);color:var(--danger);border:1px solid rgba(226,72,61,0.4);}
+.btn-block{width:100%;}
+.btn-sm{padding:7px 11px;font-size:12.5px;border-radius:7px;}
+.fab-row{display:flex;gap:8px;margin-bottom:14px;}
+
+/* Entity cards (vehicles/items) */
+.entity{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:10px;}
+.entity-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
+.entity-head .name{font-size:16px;font-weight:700;font-family:'Rajdhani',sans-serif;}
+.entity-head .sub{font-size:12.5px;color:var(--text-dim);margin-top:1px;}
+.entity-actions{display:flex;gap:6px;flex:0 0 auto;}
+.icon-btn{width:30px;height:30px;border-radius:7px;background:var(--panel-2);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;}
+.icon-btn svg{width:14px;height:14px;stroke:var(--text-dim);}
+.entity-stats{display:flex;gap:14px;margin-top:10px;flex-wrap:wrap;}
+.entity-stats div{font-size:12.5px;}
+.entity-stats .v{font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--text);}
+
+/* Table-like rows */
+.row-item{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--line);}
+.row-item:last-child{border-bottom:none;}
+.row-item .badge{font-size:10.5px;padding:3px 8px;border-radius:5px;font-weight:700;text-transform:uppercase;letter-spacing:0.03em;flex:0 0 auto;}
+.badge-mant{background:rgba(79,195,217,0.15);color:var(--cool);}
+.badge-rep{background:rgba(111,207,124,0.15);color:var(--good);}
+.badge-acc{background:rgba(255,159,28,0.15);color:var(--accent);}
+.badge-seg{background:rgba(154,160,172,0.15);color:var(--text-dim);}
+.badge-otro{background:rgba(226,72,61,0.12);color:#E2A39D;}
+.row-main{flex:1;min-width:0;}
+.row-main .l1{font-size:13.5px;font-weight:600;}
+.row-main .l2{font-size:12px;color:var(--text-dim);}
+.row-cost{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:13.5px;text-align:right;flex:0 0 auto;}
+.row-cost .sub{display:block;font-size:11px;color:var(--text-dim);font-weight:400;}
+
+/* Status badges for maintenance */
+.status-badge{font-size:11px;padding:3px 9px;border-radius:6px;font-weight:700;}
+.status-ok{background:rgba(111,207,124,0.15);color:var(--good);}
+.status-soon{background:rgba(242,183,5,0.15);color:var(--warn);}
+.status-due{background:rgba(226,72,61,0.16);color:var(--danger);}
+
+/* Forms */
+.field{margin-bottom:13px;}
+.field label{display:block;font-size:12.5px;color:var(--text-dim);margin-bottom:5px;font-weight:600;}
+.field input,.field select,.field textarea{
+  width:100%;background:var(--panel-2);border:1px solid var(--line);color:var(--text);
+  border-radius:8px;padding:11px 12px;font-size:14.5px;font-family:inherit;
+}
+.field input:focus,.field select:focus,.field textarea:focus{outline:2px solid var(--accent-dim);border-color:var(--accent-dim);}
+.field-row{display:flex;gap:10px;}
+.field-row .field{flex:1;}
+.checkbox-field{display:flex;align-items:center;gap:8px;margin-bottom:13px;}
+.checkbox-field input{width:18px;height:18px;}
+.checkbox-field label{margin:0;font-size:13.5px;color:var(--text);font-weight:500;}
+
+/* Modal */
+.overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,0.6);
+  display:none;align-items:flex-end;justify-content:center;z-index:100;
+}
+.overlay.show{display:flex;}
+.modal{
+  background:var(--bg);border:1px solid var(--line);
+  border-radius:16px 16px 0 0;width:100%;max-width:520px;
+  max-height:88vh;overflow-y:auto;padding:18px 18px 24px;
+  animation:slideup .2s ease;
+}
+@keyframes slideup{from{transform:translateY(40px);opacity:0;}to{transform:none;opacity:1;}}
+.modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;}
+.modal-head h3{margin:0;font-size:18px;}
+.modal-close{background:none;border:none;color:var(--text-dim);font-size:22px;line-height:1;padding:4px;}
+
+/* Bottom nav */
+nav.bottom{
+  position:fixed;bottom:0;left:0;right:0;z-index:30;
+  background:#16181F;border-top:1px solid var(--line);
+  display:flex;padding:6px 4px calc(6px + env(safe-area-inset-bottom));
+}
+nav.bottom button{
+  flex:1;background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:3px;
+  padding:7px 2px;color:var(--text-dim);font-size:10.5px;font-weight:600;border-radius:8px;
+}
+nav.bottom button svg{width:20px;height:20px;stroke:var(--text-dim);fill:none;stroke-width:1.8;}
+nav.bottom button.active{color:var(--accent);}
+nav.bottom button.active svg{stroke:var(--accent);}
+
+/* Chart */
+canvas{width:100%;display:block;}
+
+/* Toast */
+#toast{
+  position:fixed;bottom:88px;left:50%;transform:translateX(-50%) translateY(10px);
+  background:#2A2E36;color:var(--text);padding:11px 18px;border-radius:9px;
+  font-size:13.5px;opacity:0;pointer-events:none;transition:.25s;z-index:200;
+  border:1px solid var(--line);white-space:nowrap;
+}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+.section-title{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
+.section-title h2{font-size:19px;margin:0;}
+.select-inline{background:var(--panel-2);border:1px solid var(--line);color:var(--text);border-radius:7px;padding:7px 10px;font-size:13px;font-family:inherit;}
+
+.help-text{font-size:12.5px;color:var(--text-dim);line-height:1.5;margin-bottom:14px;}
+.divider{height:1px;background:var(--line);margin:16px 0;}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="brand">
+    <div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#1A1206" stroke-width="2"><path d="M3 13l1.5-5A2 2 0 0 1 6.4 7h11.2a2 2 0 0 1 1.9 1.4L21 13M5 13h14a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1z"/><circle cx="7" cy="18" r="1.4" fill="#1A1206"/><circle cx="17" cy="18" r="1.4" fill="#1A1206"/></svg></div>
+    <div>
+      <h1>Autogestor</h1>
+      <div class="sub">Gestión y costos vehiculares</div>
+    </div>
+  </div>
+  <div class="car-chips" id="carChips"></div>
+</header>
+
+<main>
+  <!-- DASHBOARD -->
+  <section class="section active" id="sec-dashboard"></section>
+  <!-- VEHICLES -->
+  <section class="section" id="sec-cars"></section>
+  <!-- FUEL -->
+  <section class="section" id="sec-fuel"></section>
+  <!-- EXPENSES -->
+  <section class="section" id="sec-expenses"></section>
+  <!-- MAINTENANCE -->
+  <section class="section" id="sec-maint"></section>
+  <!-- BACKUP -->
+  <section class="section" id="sec-backup"></section>
+</main>
+
+<nav class="bottom">
+  <button data-sec="dashboard" class="active">
+    <svg viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9"/></svg>
+    Inicio
+  </button>
+  <button data-sec="cars">
+    <svg viewBox="0 0 24 24"><path d="M3 13l1.5-5A2 2 0 0 1 6.4 7h11.2a2 2 0 0 1 1.9 1.4L21 13M5 13h14a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1z"/><circle cx="7" cy="18" r="1.3"/><circle cx="17" cy="18" r="1.3"/></svg>
+    Autos
+  </button>
+  <button data-sec="fuel">
+    <svg viewBox="0 0 24 24"><path d="M4 21V8a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v13M2 21h14M16 9h2a2 2 0 0 1 2 2v4a1.5 1.5 0 0 0 3 0V8l-3-3"/></svg>
+    Combust.
+  </button>
+  <button data-sec="expenses">
+    <svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0-1.4 0L4.6 15a2 2 0 0 0-.5.9L3 20l4.1-1.1a2 2 0 0 0 .9-.5l8.7-8.7a1 1 0 0 0 0-1.4z"/><path d="M14.5 5.5l4 4"/></svg>
+    Gastos
+  </button>
+  <button data-sec="maint">
+    <svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 1 0 1.4l-1 1L11 6l1-1a1 1 0 0 1 1.4 0z"/><path d="M11 6 4.3 12.7a2 2 0 0 0-.5 1L3 18l4.3-.8a2 2 0 0 0 1-.5L15 10"/><path d="M16 9l3.5 3.5a2 2 0 0 1 0 2.8l-.2.2a2 2 0 0 1-2.8 0L13 12"/></svg>
+    Mant.
+  </button>
+  <button data-sec="backup">
+    <svg viewBox="0 0 24 24"><path d="M12 3v12m0 0-4-4m4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+    Backup
+  </button>
+</nav>
+
+<div id="toast"></div>
+<div id="modalRoot"></div>
+
+<script>
+/* ============== STORAGE ============== */
+const DB_KEY = 'autogestor_v1';
+let DB = loadDB();
+let currentCarFilter = 'all'; // 'all' or carId
+let activeSection = 'dashboard';
+
+function defaultDB(){ return { cars: [], fuel: [], expenses: [], maint: [] }; }
+function loadDB(){
+  try{
+    const raw = localStorage.getItem(DB_KEY);
+    if(!raw) return defaultDB();
+    const parsed = JSON.parse(raw);
+    return Object.assign(defaultDB(), parsed);
+  }catch(e){ console.error('Error cargando datos', e); return defaultDB(); }
+}
+function saveDB(){ localStorage.setItem(DB_KEY, JSON.stringify(DB)); }
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+
+/* ============== FORMAT HELPERS ============== */
+function numFmt(n, decimals=0){
+  n = Number(n)||0;
+  const sign = n<0 ? '-':'';
+  n = Math.abs(n);
+  const parts = n.toFixed(decimals).split('.');
+  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return sign + parts.join(',');
+}
+function fmtGs(n){ return '₲ ' + numFmt(n,0); }
+function fmtKm(n){ return numFmt(n,0) + ' km'; }
+function fmtL(n){ return numFmt(n,1) + ' L'; }
+function fmtDate(d){
+  if(!d) return '—';
+  const dt = new Date(d+'T00:00:00');
+  if(isNaN(dt)) return d;
+  return dt.toLocaleDateString('es-PY', {day:'2-digit',month:'short',year:'numeric'});
+}
+function todayStr(){ return new Date().toISOString().slice(0,10); }
+function monthsBetween(d1,d2){
+  const a=new Date(d1), b=new Date(d2);
+  return Math.max(0,(b.getFullYear()-a.getFullYear())*12 + (b.getMonth()-a.getMonth()) + (b.getDate()>=a.getDate()?0:-1));
+}
+function odometerHTML(value, decimals=0){
+  const str = (Number(value)||0).toFixed(decimals);
+  let html = '';
+  for(const ch of str){
+    if(ch===','||ch==='.'){ html += `<div class="odo-digit sep">${ch===','?',':'.'}</div>`; }
+    else { html += `<div class="odo-digit">${ch}</div>`; }
+  }
+  return html;
+}
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(()=>t.classList.remove('show'), 2200);
+}
+
+/* ============== DEFAULT MAINTENANCE TEMPLATES ============== */
+const DEFAULT_MAINT_TEMPLATES = [
+  {name:'Cambio de aceite y filtro', intervalKm:10000, intervalMonths:12},
+  {name:'Rotación de neumáticos', intervalKm:10000, intervalMonths:null},
+  {name:'Filtro de aire', intervalKm:15000, intervalMonths:null},
+  {name:'Filtro de combustible', intervalKm:20000, intervalMonths:null},
+  {name:'Bujías', intervalKm:30000, intervalMonths:null},
+  {name:'Líquido de frenos', intervalKm:null, intervalMonths:24},
+  {name:'Correa / cadena de distribución', intervalKm:60000, intervalMonths:60},
+  {name:'Batería', intervalKm:null, intervalMonths:48},
+  {name:'Alineación y balanceo', intervalKm:10000, intervalMonths:null},
+];
+
+/* ============== DATA QUERIES ============== */
+function getCar(id){ return DB.cars.find(c=>c.id===id); }
+function carsList(){ return DB.cars; }
+function fuelByCar(carId){ return DB.fuel.filter(f=>f.carId===carId).sort((a,b)=>a.km-b.km); }
+function expensesByCar(carId){ return DB.expenses.filter(e=>e.carId===carId); }
+function maintByCar(carId){ return DB.maint.filter(m=>m.carId===carId); }
+
+function carCurrentKm(carId){
+  const car = getCar(carId); if(!car) return 0;
+  let max = car.kmAtPurchase||0;
+  DB.fuel.forEach(f=>{ if(f.carId===carId && f.km>max) max=f.km; });
+  DB.expenses.forEach(e=>{ if(e.carId===carId && e.km>max) max=e.km; });
+  return max;
+}
+function carFuelCost(carId){ return DB.fuel.filter(f=>f.carId===carId).reduce((s,f)=>s+Number(f.totalCost||0),0); }
+function carExpenseCost(carId){ return DB.expenses.filter(e=>e.carId===carId).reduce((s,e)=>s+Number(e.cost||0),0); }
+function carOperatingCost(carId){ return carFuelCost(carId)+carExpenseCost(carId); }
+function carTotalCost(carId){ const car=getCar(carId); return (car?Number(car.purchasePrice||0):0) + carOperatingCost(carId); }
+function carDistanceTraveled(carId){
+  const car=getCar(carId); if(!car) return 0;
+  return Math.max(0, carCurrentKm(carId) - (car.kmAtPurchase||0));
+}
+function carCostPerKm(carId, includePurchase=false){
+  const dist = carDistanceTraveled(carId);
+  if(dist<=0) return 0;
+  const cost = includePurchase ? carTotalCost(carId) : carOperatingCost(carId);
+  return cost/dist;
+}
+function carMonthsOwned(carId){
+  const car=getCar(carId); if(!car || !car.purchaseDate) return 0;
+  return Math.max(1, monthsBetween(car.purchaseDate, todayStr()));
+}
+function carMonthlyAvg(carId){ return carOperatingCost(carId)/carMonthsOwned(carId); }
+function carAnnualAvg(carId){ return carMonthlyAvg(carId)*12; }
+
+function carFuelEfficiency(carId){
+  // returns avg km/L using consecutive FULL-TANK entries sorted by km
+  const entries = fuelByCar(carId).filter(f=>f.fullTank);
+  if(entries.length<2) return null;
+  let totalKm=0, totalL=0;
+  for(let i=1;i<entries.length;i++){
+    const dKm = entries[i].km - entries[i-1].km;
+    if(dKm>0){ totalKm+=dKm; totalL+=Number(entries[i].liters||0); }
+  }
+  if(totalL<=0) return null;
+  return totalKm/totalL;
+}
+function carAvgFuelPrice(carId){
+  const entries = fuelByCar(carId);
+  let totalCost=0, totalL=0;
+  entries.forEach(f=>{ totalCost+=Number(f.totalCost||0); totalL+=Number(f.liters||0); });
+  if(totalL<=0) return 0;
+  return totalCost/totalL;
+}
+
+function maintNextDue(item){
+  const carKm = carCurrentKm(item.carId);
+  let dueKm = null, dueDate = null;
+  if(item.intervalKm){
+    const base = item.lastDoneKm!=null ? item.lastDoneKm : (getCar(item.carId)?.kmAtPurchase||0);
+    dueKm = base + Number(item.intervalKm);
+  }
+  if(item.intervalMonths){
+    const base = item.lastDoneDate || getCar(item.carId)?.purchaseDate || todayStr();
+    const d = new Date(base); d.setMonth(d.getMonth()+Number(item.intervalMonths));
+    dueDate = d.toISOString().slice(0,10);
+  }
+  let status = 'ok'; // ok | soon | due
+  let remainingKm = dueKm!=null ? dueKm-carKm : null;
+  let overdueByDate = dueDate!=null && new Date(dueDate) < new Date(todayStr());
+
+  if((remainingKm!=null && remainingKm<=0) || overdueByDate) status='due';
+  else if((remainingKm!=null && remainingKm<=1000) || (dueDate!=null && monthsBetween(todayStr(),dueDate)<1)) status='soon';
+
+  return { dueKm, dueDate, status, remainingKm };
+}
+
+/* ============== CASCADE DELETE ============== */
+function deleteCar(carId){
+  DB.cars = DB.cars.filter(c=>c.id!==carId);
+  DB.fuel = DB.fuel.filter(f=>f.carId!==carId);
+  DB.expenses = DB.expenses.filter(e=>e.carId!==carId);
+  DB.maint = DB.maint.filter(m=>m.carId!==carId);
+  saveDB();
+}
+
+/* ============== NAVIGATION ============== */
+document.querySelectorAll('nav.bottom button').forEach(btn=>{
+  btn.addEventListener('click', ()=>goSection(btn.dataset.sec));
+});
+function goSection(sec){
+  activeSection = sec;
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.getElementById('sec-'+sec).classList.add('active');
+  document.querySelectorAll('nav.bottom button').forEach(b=>b.classList.toggle('active', b.dataset.sec===sec));
+  renderAll();
+  window.scrollTo(0,0);
+}
+
+/* ============== CAR CHIPS ============== */
+function renderCarChips(){
+  const el = document.getElementById('carChips');
+  if(DB.cars.length<=1){ el.innerHTML=''; el.style.display='none'; return; }
+  el.style.display='flex';
+  let html = `<div class="chip ${currentCarFilter==='all'?'active':''}" data-car="all">Todos</div>`;
+  DB.cars.forEach(c=>{
+    html += `<div class="chip ${currentCarFilter===c.id?'active':''}" data-car="${c.id}">${escapeHtml(c.alias)}</div>`;
+  });
+  el.innerHTML = html;
+  el.querySelectorAll('.chip').forEach(chip=>{
+    chip.addEventListener('click', ()=>{ currentCarFilter=chip.dataset.car; renderAll(); });
+  });
+}
+function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* ============== MODAL HELPERS ============== */
+function openModal(html){
+  const root = document.getElementById('modalRoot');
+  root.innerHTML = `<div class="overlay show" id="ov">${html}</div>`;
+  document.getElementById('ov').addEventListener('click', e=>{ if(e.target.id==='ov') closeModal(); });
+}
+function closeModal(){ document.getElementById('modalRoot').innerHTML=''; }
+
+/* ============== RENDER: DASHBOARD ============== */
+function renderDashboard(){
+  const el = document.getElementById('sec-dashboard');
+  const filterCars = currentCarFilter==='all' ? DB.cars : DB.cars.filter(c=>c.id===currentCarFilter);
+  const carIds = filterCars.map(c=>c.id);
+
+  if(DB.cars.length===0){
+    el.innerHTML = `<div class="card"><h3>Bienvenido</h3><p class="help-text">Todavía no agregaste ningún vehículo. Empezá agregando tu primer auto para llevar el control de costos, combustible y mantenimiento.</p><button class="btn btn-primary btn-block" onclick="goSection('cars')">Agregar mi primer vehículo</button></div>`;
+    return;
+  }
+
+  const totalCost = carIds.reduce((s,id)=>s+carTotalCost(id),0);
+  const totalOperating = carIds.reduce((s,id)=>s+carOperatingCost(id),0);
+  const totalDist = carIds.reduce((s,id)=>s+carDistanceTraveled(id),0);
+  const costPerKm = totalDist>0 ? totalOperating/totalDist : 0;
+  const monthlyAvg = carIds.reduce((s,id)=>s+carMonthlyAvg(id),0);
+  const annualAvg = monthlyAvg*12;
+
+  // fuel efficiency (only meaningful per-car when single car selected)
+  let effHtml = '—';
+  if(filterCars.length===1){
+    const eff = carFuelEfficiency(filterCars[0].id);
+    effHtml = eff!=null ? numFmt(eff,1)+' km/L' : 'Sin datos suficientes';
+  } else {
+    const effs = filterCars.map(c=>carFuelEfficiency(c.id)).filter(e=>e!=null);
+    effHtml = effs.length ? numFmt(effs.reduce((a,b)=>a+b,0)/effs.length,1)+' km/L (prom.)' : 'Sin datos suficientes';
+  }
+
+  // maintenance alerts
+  let alerts = [];
+  carIds.forEach(id=>{
+    maintByCar(id).forEach(item=>{
+      const r = maintNextDue(item);
+      if(r.status!=='ok'){
+        alerts.push({carName:getCar(id).alias, name:item.name, status:r.status, remainingKm:r.remainingKm, dueDate:r.dueDate});
+      }
+    });
+  });
+  alerts.sort((a,b)=> (a.status==='due'?0:1) - (b.status==='due'?0:1));
+
+  let alertsHtml = '';
+  if(alerts.length===0){ alertsHtml = `<div class="empty">No hay mantenimientos próximos o vencidos. 👍</div>`; }
+  else{
+    alertsHtml = alerts.slice(0,6).map(a=>{
+      const dotClass = a.status==='due' ? 'bad':'warn';
+      let meta = '';
+      if(a.remainingKm!=null) meta = a.remainingKm<=0 ? `Vencido por ${fmtKm(Math.abs(a.remainingKm))}` : `Faltan ${fmtKm(a.remainingKm)}`;
+      else if(a.dueDate) meta = a.status==='due' ? `Vencido (${fmtDate(a.dueDate)})` : `Antes del ${fmtDate(a.dueDate)}`;
+      return `<div class="alert-item"><div class="dot ${dotClass}"></div><div class="txt"><div class="name">${escapeHtml(a.name)}${DB.cars.length>1?' · '+escapeHtml(a.carName):''}</div><div class="meta">${meta}</div></div></div>`;
+    }).join('');
+  }
+
+  // recent activity feed
+  let feed = [];
+  carIds.forEach(id=>{
+    fuelByCar(id).forEach(f=>feed.push({type:'fuel', date:f.date, km:f.km, cost:f.totalCost, label:'Combustible', sub:fmtL(f.liters)+(DB.cars.length>1?' · '+getCar(id).alias:'')}));
+    expensesByCar(id).forEach(e=>feed.push({type:'expense', date:e.date, km:e.km, cost:e.cost, label:e.description||e.category, sub:e.category+(DB.cars.length>1?' · '+getCar(id).alias:'')}));
+  });
+  feed.sort((a,b)=> new Date(b.date)-new Date(a.date));
+  feed = feed.slice(0,6);
+  const fuelIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 21V8a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v13M2 21h14M16 9h2a2 2 0 0 1 2 2v4a1.5 1.5 0 0 0 3 0V8l-3-3"/></svg>`;
+  const wrenchIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14.7 6.3a1 1 0 0 1 0 1.4l-1 1L11 6l1-1a1 1 0 0 1 1.4 0z"/><path d="M11 6 4.3 12.7a2 2 0 0 0-.5 1L3 18l4.3-.8a2 2 0 0 0 1-.5L15 10"/></svg>`;
+  let feedHtml = feed.length ? feed.map(f=>`
+    <div class="feed-item">
+      <div class="feed-icon">${f.type==='fuel'?fuelIcon:wrenchIcon}</div>
+      <div class="feed-main"><div class="t1">${escapeHtml(f.label)}</div><div class="t2">${fmtDate(f.date)} · ${fmtKm(f.km)} · ${escapeHtml(f.sub)}</div></div>
+      <div class="feed-cost">${fmtGs(f.cost)}</div>
+    </div>`).join('') : `<div class="empty">Todavía no hay registros.</div>`;
+
+  // monthly chart data (last 12 months)
+  const chartData = monthlyChartData(carIds);
+
+  el.innerHTML = `
+    <div class="hero-row">
+      <div class="hero-card">
+        <div class="label">Costo total acumulado</div>
+        <div class="odometer">${odometerHTML(totalCost,0)}</div>
+        <div class="odo-unit">Guaraníes</div>
+      </div>
+    </div>
+    <div class="stat-grid">
+      <div class="stat"><div class="label">Costo por km</div><div class="value cool">${fmtGs(costPerKm)}</div></div>
+      <div class="stat"><div class="label">Promedio mensual</div><div class="value">${fmtGs(monthlyAvg)}</div></div>
+      <div class="stat"><div class="label">Estimado anual</div><div class="value">${fmtGs(annualAvg)}</div></div>
+      <div class="stat"><div class="label">Rendimiento</div><div class="value cool">${effHtml}</div></div>
+    </div>
+    <div class="card">
+      <h3>Gastos mensuales (12 meses)</h3>
+      <canvas id="monthChart" height="140"></canvas>
+    </div>
+    <div class="card">
+      <h3>Alertas de mantenimiento</h3>
+      ${alertsHtml}
+    </div>
+    <div class="card">
+      <h3>Actividad reciente</h3>
+      ${feedHtml}
+    </div>
+  `;
+  drawBarChart(document.getElementById('monthChart'), chartData);
+}
+
+function monthlyChartData(carIds){
+  const months = [];
+  const now = new Date();
+  for(let i=11;i>=0;i--){
+    const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+    months.push({key:d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'), label:d.toLocaleDateString('es-PY',{month:'short'}), total:0});
+  }
+  const map = {}; months.forEach(m=>map[m.key]=m);
+  carIds.forEach(id=>{
+    DB.fuel.filter(f=>f.carId===id).forEach(f=>{ const k=f.date.slice(0,7); if(map[k]) map[k].total+=Number(f.totalCost||0); });
+    DB.expenses.filter(e=>e.carId===id).forEach(e=>{ const k=e.date.slice(0,7); if(map[k]) map[k].total+=Number(e.cost||0); });
+  });
+  return months;
+}
+function drawBarChart(canvas, data){
+  if(!canvas) return;
+  const dpr = window.devicePixelRatio||1;
+  const w = canvas.clientWidth||300, h = 140;
+  canvas.width = w*dpr; canvas.height = h*dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr,dpr);
+  ctx.clearRect(0,0,w,h);
+  const max = Math.max(...data.map(d=>d.total), 1);
+  const padBottom = 20, padTop = 6;
+  const barW = w/data.length;
+  data.forEach((d,i)=>{
+    const barH = ((h-padBottom-padTop) * (d.total/max));
+    const x = i*barW + barW*0.22;
+    const bw = barW*0.56;
+    const y = h-padBottom-barH;
+    const grad = ctx.createLinearGradient(0,y,0,h-padBottom);
+    grad.addColorStop(0,'#FF9F1C'); grad.addColorStop(1,'#C97D17');
+    ctx.fillStyle = d.total>0 ? grad : '#2A2E36';
+    ctx.beginPath();
+    ctx.roundRect ? ctx.roundRect(x,y,bw,Math.max(barH,2),3) : ctx.rect(x,y,bw,Math.max(barH,2));
+    ctx.fill();
+    ctx.fillStyle = '#9AA0AC';
+    ctx.font = '10px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(d.label, x+bw/2, h-6);
+  });
+}
+
+/* ============== RENDER: CARS ============== */
+function renderCars(){
+  const el = document.getElementById('sec-cars');
+  let html = `
+    <div class="section-title"><h2>Vehículos</h2></div>
+    <button class="btn btn-primary btn-block" onclick="openCarForm()">+ Agregar vehículo</button>
+    <div style="height:14px"></div>
+  `;
+  if(DB.cars.length===0){
+    html += `<div class="empty">Todavía no agregaste vehículos.</div>`;
+  } else {
+    DB.cars.forEach(c=>{
+      const km = carCurrentKm(c.id);
+      html += `
+      <div class="entity">
+        <div class="entity-head">
+          <div>
+            <div class="name">${escapeHtml(c.alias)}</div>
+            <div class="sub">${escapeHtml(c.brand||'')} ${escapeHtml(c.model||'')} ${c.year?'· '+c.year:''} ${c.plate?'· '+escapeHtml(c.plate):''}</div>
+          </div>
+          <div class="entity-actions">
+            <button class="icon-btn" onclick="openCarForm('${c.id}')" title="Editar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
+            <button class="icon-btn" onclick="confirmDeleteCar('${c.id}')" title="Eliminar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg></button>
+          </div>
+        </div>
+        <div class="entity-stats">
+          <div>Km actual<br><span class="v">${fmtKm(km)}</span></div>
+          <div>Costo total<br><span class="v">${fmtGs(carTotalCost(c.id))}</span></div>
+          <div>Costo/km<br><span class="v">${fmtGs(carCostPerKm(c.id))}</span></div>
+        </div>
+      </div>`;
+    });
+  }
+  el.innerHTML = html;
+}
+
+function openCarForm(carId){
+  const car = carId ? getCar(carId) : null;
+  const html = `
+    <div class="modal">
+      <div class="modal-head"><h3>${car?'Editar vehículo':'Nuevo vehículo'}</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
+      <div class="field"><label>Alias / nombre*</label><input id="f-alias" value="${escapeHtml(car?.alias||'')}" placeholder="Ej: Hilux, Auto de mamá"></div>
+      <div class="field-row">
+        <div class="field"><label>Marca</label><input id="f-brand" value="${escapeHtml(car?.brand||'')}" placeholder="Toyota"></div>
+        <div class="field"><label>Modelo</label><input id="f-model" value="${escapeHtml(car?.model||'')}" placeholder="Hilux"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Año</label><input id="f-year" type="number" value="${car?.year||''}" placeholder="2018"></div>
+        <div class="field"><label>Patente</label><input id="f-plate" value="${escapeHtml(car?.plate||'')}" placeholder="ABC 123"></div>
+      </div>
+      <div class="field"><label>Tipo de combustible</label>
+        <select id="f-fuelType">
+          ${['Gasolina','Diésel','GNC','Eléctrico','Híbrido'].map(t=>`<option ${car?.fuelType===t?'selected':''}>${t}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Fecha de compra</label><input id="f-purchaseDate" type="date" value="${car?.purchaseDate||todayStr()}"></div>
+        <div class="field"><label>Precio de compra (Gs.)</label><input id="f-purchasePrice" type="number" value="${car?.purchasePrice||''}" placeholder="0"></div>
+      </div>
+      <div class="field"><label>Kilometraje al comprar</label><input id="f-kmAtPurchase" type="number" value="${car?.kmAtPurchase||0}"></div>
+      <div class="field"><label>Notas</label><textarea id="f-notes" rows="2">${escapeHtml(car?.notes||'')}</textarea></div>
+      ${!car?`<div class="checkbox-field"><input type="checkbox" id="f-addTemplates" checked><label for="f-addTemplates">Agregar plan de mantenimiento estándar (editable después)</label></div>`:''}
+      <button class="btn btn-primary btn-block" onclick="saveCar('${carId||''}')">Guardar</button>
+    </div>
+  `;
+  openModal(html);
+}
+function saveCar(carId){
+  const alias = document.getElementById('f-alias').value.trim();
+  if(!alias){ toast('Ingresá un alias para el vehículo'); return; }
+  const data = {
+    alias,
+    brand: document.getElementById('f-brand').value.trim(),
+    model: document.getElementById('f-model').value.trim(),
+    year: Number(document.getElementById('f-year').value)||null,
+    plate: document.getElementById('f-plate').value.trim(),
+    fuelType: document.getElementById('f-fuelType').value,
+    purchaseDate: document.getElementById('f-purchaseDate').value || todayStr(),
+    purchasePrice: Number(document.getElementById('f-purchasePrice').value)||0,
+    kmAtPurchase: Number(document.getElementById('f-kmAtPurchase').value)||0,
+    notes: document.getElementById('f-notes').value.trim(),
+  };
+  if(carId){
+    Object.assign(getCar(carId), data);
+  } else {
+    const id = uid();
+    DB.cars.push(Object.assign({id}, data));
+    const addTemplates = document.getElementById('f-addTemplates')?.checked;
+    if(addTemplates){
+      DEFAULT_MAINT_TEMPLATES.forEach(t=>{
+        DB.maint.push({id:uid(), carId:id, name:t.name, intervalKm:t.intervalKm, intervalMonths:t.intervalMonths, lastDoneKm:null, lastDoneDate:null});
+      });
+    }
+  }
+  saveDB(); closeModal(); toast('Vehículo guardado'); renderAll();
+}
+function confirmDeleteCar(carId){
+  const car = getCar(carId);
+  const html = `
+    <div class="modal">
+      <div class="modal-head"><h3>Eliminar vehículo</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
+      <p class="help-text">Esto eliminará <b>${escapeHtml(car.alias)}</b> y todos sus registros de combustible, gastos y mantenimiento. Esta acción no se puede deshacer.</p>
+      <button class="btn btn-danger btn-block" onclick="deleteCar('${carId}'); closeModal(); toast('Vehículo eliminado'); if(currentCarFilter==='${carId}') currentCarFilter='all'; renderAll();">Eliminar definitivamente</button>
+    </div>`;
+  openModal(html);
+}
+
+/* ============== RENDER: FUEL ============== */
+function renderFuel(){
+  const el = document.getElementById('sec-fuel');
+  const cars = DB.cars;
+  if(cars.length===0){ el.innerHTML = noCarMsg(); return; }
+  const carIds = currentCarFilter==='all' ? cars.map(c=>c.id) : [currentCarFilter];
+  let entries = DB.fuel.filter(f=>carIds.includes(f.carId)).sort((a,b)=> new Date(b.date)-new Date(a.date) || b.km-a.km);
+
+  const totalCost = entries.reduce((s,f)=>s+Number(f.totalCost||0),0);
+  const totalL = entries.reduce((s,f)=>s+Number(f.liters||0),0);
+  const avgPrice = totalL>0 ? totalCost/totalL : 0;
+
+  let html = `
+    <div class="section-title"><h2>Combustible</h2></div>
+    <button class="btn btn-primary btn-block" onclick="openFuelForm()">+ Agregar carga</button>
+    <div style="height:14px"></div>
+    <div class="stat-grid">
+      <div class="stat"><div class="label">Gastado en combustible</div><div class="value">${fmtGs(totalCost)}</div></div>
+      <div class="stat"><div class="label">Precio promedio / L</div><div class="value cool">${fmtGs(avgPrice)}</div></div>
+    </div>
+    <div class="card"><h3>Historial</h3>
+  `;
+  if(entries.length===0){ html += `<div class="empty">Todavía no hay cargas registradas.</div>`; }
+  else {
+    html += entries.map(f=>{
+      const car = getCar(f.carId);
+      const pricePerL = f.liters>0 ? f.totalCost/f.liters : 0;
+      return `<div class="row-item">
+        <div class="row-main">
+          <div class="l1">${fmtDate(f.date)} ${DB.cars.length>1?'· '+escapeHtml(car.alias):''} ${f.fullTank?'⛽':''}</div>
+          <div class="l2">${fmtKm(f.km)} · ${fmtL(f.liters)} · ${fmtGs(pricePerL)}/L${f.station?' · '+escapeHtml(f.station):''}</div>
+        </div>
+        <div class="row-cost">${fmtGs(f.totalCost)}
+          <span class="sub" style="cursor:pointer;text-decoration:underline" onclick="openFuelForm('${f.id}')">editar</span>
+        </div>
+      </div>`;
+    }).join('');
+  }
+  html += `</div>`;
+  el.innerHTML = html;
+}
+function carOptionsHtml(selectedId){
+  return DB.cars.map(c=>`<option value="${c.id}" ${selectedId===c.id?'selected':''}>${escapeHtml(c.alias)}</option>`).join('');
+}
+function openFuelForm(entryId){
+  const entry = entryId ? DB.fuel.find(f=>f.id===entryId) : null;
+  const defaultCar = entry?.carId || (currentCarFilter!=='all'?currentCarFilter:DB.cars[0].id);
+  const html = `
+    <div class="modal">
+      <div class="modal-head"><h3>${entry?'Editar carga':'Nueva carga de combustible'}</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
+      ${DB.cars.length>1?`<div class="field"><label>Vehículo</label><select id="f-carId">${carOptionsHtml(defaultCar)}</select></div>`:`<input type="hidden" id="f-carId" value="${defaultCar}">`}
+      <div class="field-row">
+        <div class="field"><label>Fecha</label><input id="f-date" type="date" value="${entry?.date||todayStr()}"></div>
+        <div class="field"><label>Kilometraje</label><input id="f-km" type="number" value="${entry?.km??''}" placeholder="Ej: 45000"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Litros</label><input id="f-liters" type="number" step="0.01" value="${entry?.liters??''}"></div>
+        <div class="field"><label>Costo total (Gs.)</label><input id="f-totalCost" type="number" value="${entry?.totalCost??''}"></div>
+      </div>
+      <div class="checkbox-field"><input type="checkbox" id="f-fullTank" ${(!entry || entry.fullTank)?'checked':''}><label for="f-fullTank">Tanque lleno (necesario para calcular rendimiento)</label></div>
+      <div class="field"><label>Estación / lugar (opcional)</label><input id="f-station" value="${escapeHtml(entry?.station||'')}"></div>
+      <div class="field"><label>Notas</label><textarea id="f-notes" rows="2">${escapeHtml(entry?.notes||'')}</textarea></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary btn-block" onclick="saveFuel('${entryId||''}')">Guardar</button>
+        ${entry?`<button class="btn btn-danger" onclick="deleteFuel('${entryId}')">Eliminar</button>`:''}
+      </div>
+    </div>`;
+  openModal(html);
+}
+function saveFuel(entryId){
+  const km = Number(document.getElementById('f-km').value);
+  const liters = Number(document.getElementById('f-liters').value);
+  const totalCost = Number(document.getElementById('f-totalCost').value);
+  if(!km || !liters || !totalCost){ toast('Completá kilometraje, litros y costo'); return; }
+  const data = {
+    carId: document.getElementById('f-carId').value,
+    date: document.getElementById('f-date').value || todayStr(),
+    km, liters, totalCost,
+    fullTank: document.getElementById('f-fullTank').checked,
+    station: document.getElementById('f-station').value.trim(),
+    notes: document.getElementById('f-notes').value.trim(),
+  };
+  if(entryId){ Object.assign(DB.fuel.find(f=>f.id===entryId), data); }
+  else { DB.fuel.push(Object.assign({id:uid()}, data)); }
+  saveDB(); closeModal(); toast('Carga guardada'); renderAll();
+}
+function deleteFuel(entryId){
+  DB.fuel = DB.fuel.filter(f=>f.id!==entryId);
+  saveDB(); closeModal(); toast('Carga eliminada'); renderAll();
+}
+
+/* ============== RENDER: EXPENSES ============== */
+const CATEGORIES = ['Mantenimiento','Repuesto','Accesorio','Seguro','Impuestos/Documentación','Lavado/Detailing','Otro'];
+function categoryBadgeClass(cat){
+  if(cat==='Mantenimiento') return 'badge-mant';
+  if(cat==='Repuesto') return 'badge-rep';
+  if(cat==='Accesorio') return 'badge-acc';
+  if(cat==='Seguro') return 'badge-seg';
+  return 'badge-otro';
+}
+function renderExpenses(){
+  const el = document.getElementById('sec-expenses');
+  if(DB.cars.length===0){ el.innerHTML = noCarMsg(); return; }
+  const carIds = currentCarFilter==='all' ? DB.cars.map(c=>c.id) : [currentCarFilter];
+  let entries = DB.expenses.filter(e=>carIds.includes(e.carId)).sort((a,b)=> new Date(b.date)-new Date(a.date));
+  const total = entries.reduce((s,e)=>s+Number(e.cost||0),0);
+  const byCat = {};
+  entries.forEach(e=>{ byCat[e.category]=(byCat[e.category]||0)+Number(e.cost||0); });
+
+  let html = `
+    <div class="section-title"><h2>Gastos</h2></div>
+    <button class="btn btn-primary btn-block" onclick="openExpenseForm()">+ Agregar gasto</button>
+    <div style="height:14px"></div>
+    <div class="stat-grid">
+      <div class="stat"><div class="label">Total gastos</div><div class="value">${fmtGs(total)}</div></div>
+      <div class="stat"><div class="label">Mayor categoría</div><div class="value cool">${Object.keys(byCat).length?Object.entries(byCat).sort((a,b)=>b[1]-a[1])[0][0]:'—'}</div></div>
+    </div>
+    <div class="card"><h3>Historial</h3>
+  `;
+  if(entries.length===0){ html += `<div class="empty">Todavía no hay gastos registrados.</div>`; }
+  else {
+    html += entries.map(e=>{
+      const car = getCar(e.carId);
+      return `<div class="row-item">
+        <span class="badge ${categoryBadgeClass(e.category)}">${escapeHtml(e.category)}</span>
+        <div class="row-main">
+          <div class="l1">${escapeHtml(e.description||e.category)}</div>
+          <div class="l2">${fmtDate(e.date)} ${DB.cars.length>1?'· '+escapeHtml(car.alias):''} · ${fmtKm(e.km)}</div>
+        </div>
+        <div class="row-cost">${fmtGs(e.cost)}
+          <span class="sub" style="cursor:pointer;text-decoration:underline" onclick="openExpenseForm('${e.id}')">editar</span>
+        </div>
+      </div>`;
+    }).join('');
+  }
+  html += `</div>`;
+  el.innerHTML = html;
+}
+function openExpenseForm(entryId){
+  const entry = entryId ? DB.expenses.find(e=>e.id===entryId) : null;
+  const defaultCar = entry?.carId || (currentCarFilter!=='all'?currentCarFilter:DB.cars[0].id);
+  const maintOptions = maintByCar(defaultCar).map(m=>`<option value="${m.id}" ${entry?.linkedMaintId===m.id?'selected':''}>${escapeHtml(m.name)}</option>`).join('');
+  const html = `
+    <div class="modal">
+      <div class="modal-head"><h3>${entry?'Editar gasto':'Nuevo gasto'}</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
+      ${DB.cars.length>1?`<div class="field"><label>Vehículo</label><select id="f-carId" onchange="refreshMaintLinkOptions()">${carOptionsHtml(defaultCar)}</select></div>`:`<input type="hidden" id="f-carId" value="${defaultCar}">`}
+      <div class="field"><label>Categoría</label>
+        <select id="f-category" onchange="toggleMaintLink()">${CATEGORIES.map(c=>`<option ${entry?.category===c?'selected':''}>${c}</option>`).join('')}</select>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Fecha</label><input id="f-date" type="date" value="${entry?.date||todayStr()}"></div>
+        <div class="field"><label>Kilometraje</label><input id="f-km" type="number" value="${entry?.km??''}"></div>
+      </div>
+      <div class="field"><label>Descripción (qué se hizo)</label><input id="f-description" value="${escapeHtml(entry?.description||'')}" placeholder="Ej: Cambio de aceite y filtro"></div>
+      <div class="field"><label>Costo (Gs.)</label><input id="f-cost" type="number" value="${entry?.cost??''}"></div>
+      <div class="field" id="maintLinkField" style="display:${(entry?.category==='Mantenimiento'||!entry)?'block':'none'}">
+        <label>Vincular a ítem de mantenimiento (opcional)</label>
+        <select id="f-linkedMaintId"><option value="">— Ninguno —</option>${maintOptions}</select>
+      </div>
+      <div class="field"><label>Notas</label><textarea id="f-notes" rows="2">${escapeHtml(entry?.notes||'')}</textarea></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary btn-block" onclick="saveExpense('${entryId||''}')">Guardar</button>
+        ${entry?`<button class="btn btn-danger" onclick="deleteExpense('${entryId}')">Eliminar</button>`:''}
+      </div>
+    </div>`;
+  openModal(html);
+  toggleMaintLink();
+}
+function toggleMaintLink(){
+  const cat = document.getElementById('f-category').value;
+  document.getElementById('maintLinkField').style.display = cat==='Mantenimiento' ? 'block':'none';
+}
+function refreshMaintLinkOptions(){
+  const carId = document.getElementById('f-carId').value;
+  const sel = document.getElementById('f-linkedMaintId');
+  sel.innerHTML = '<option value="">— Ninguno —</option>' + maintByCar(carId).map(m=>`<option value="${m.id}">${escapeHtml(m.name)}</option>`).join('');
+}
+function saveExpense(entryId){
+  const km = Number(document.getElementById('f-km').value);
+  const cost = Number(document.getElementById('f-cost').value);
+  if(!km || !cost){ toast('Completá kilometraje y costo'); return; }
+  const linkedMaintId = document.getElementById('f-linkedMaintId')?.value || null;
+  const data = {
+    carId: document.getElementById('f-carId').value,
+    category: document.getElementById('f-category').value,
+    date: document.getElementById('f-date').value || todayStr(),
+    km,
+    description: document.getElementById('f-description').value.trim(),
+    cost,
+    notes: document.getElementById('f-notes').value.trim(),
+    linkedMaintId: linkedMaintId || null,
+  };
+  if(entryId){ Object.assign(DB.expenses.find(e=>e.id===entryId), data); }
+  else { DB.expenses.push(Object.assign({id:uid()}, data)); }
+
+  if(data.linkedMaintId){
+    const item = DB.maint.find(m=>m.id===data.linkedMaintId);
+    if(item && (item.lastDoneKm==null || data.km>item.lastDoneKm)){
+      item.lastDoneKm = data.km; item.lastDoneDate = data.date;
+    }
+  }
+  saveDB(); closeModal(); toast('Gasto guardado'); renderAll();
+}
+function deleteExpense(entryId){
+  DB.expenses = DB.expenses.filter(e=>e.id!==entryId);
+  saveDB(); closeModal(); toast('Gasto eliminado'); renderAll();
+}
+
+/* ============== RENDER: MAINTENANCE ============== */
+function renderMaint(){
+  const el = document.getElementById('sec-maint');
+  if(DB.cars.length===0){ el.innerHTML = noCarMsg(); return; }
+  const carId = currentCarFilter!=='all' ? currentCarFilter : DB.cars[0].id;
+  const car = getCar(carId);
+  let items = maintByCar(carId);
+
+  let selectorHtml = '';
+  if(DB.cars.length>1 && currentCarFilter==='all'){
+    selectorHtml = `<div class="field"><label>Mostrando plan de:</label><select class="select-inline" onchange="currentCarFilter=this.value;renderAll();">${carOptionsHtml(carId)}</select></div>`;
+  }
+
+  let html = `
+    <div class="section-title"><h2>Mantenimiento</h2></div>
+    ${selectorHtml}
+    <div class="fab-row">
+      <button class="btn btn-primary" style="flex:1" onclick="openMaintForm(null,'${carId}')">+ Agregar ítem</button>
+      <button class="btn btn-ghost" style="flex:1" onclick="addStandardPlan('${carId}')">Agregar plan estándar</button>
+    </div>
+  `;
+  if(items.length===0){
+    html += `<div class="empty">Este vehículo no tiene un plan de mantenimiento. Agregá ítems manualmente o usá el plan estándar como punto de partida — los intervalos son orientativos y los podés ajustar según el manual de tu vehículo.</div>`;
+  } else {
+    html += `<p class="help-text">Los intervalos son recomendaciones generales editables — ajustalos según el manual de tu vehículo.</p>`;
+    items.sort((a,b)=>{
+      const ra=maintNextDue(a), rb=maintNextDue(b);
+      const order = {due:0,soon:1,ok:2};
+      return order[ra.status]-order[rb.status];
+    });
+    items.forEach(item=>{
+      const r = maintNextDue(item);
+      const statusLabel = {due:'Vencido', soon:'Próximo', ok:'Al día'}[r.status];
+      const statusClass = {due:'status-due', soon:'status-soon', ok:'status-ok'}[r.status];
+      let dueText = [];
+      if(r.dueKm!=null) dueText.push(`a los ${fmtKm(r.dueKm)}`);
+      if(r.dueDate!=null) dueText.push(`antes del ${fmtDate(r.dueDate)}`);
+      html += `
+      <div class="entity">
+        <div class="entity-head">
+          <div>
+            <div class="name" style="font-size:15px">${escapeHtml(item.name)}</div>
+            <div class="sub">Próximo: ${dueText.join(' / ')||'—'}</div>
+          </div>
+          <span class="status-badge ${statusClass}">${statusLabel}</span>
+        </div>
+        <div class="entity-stats">
+          <div>Intervalo<br><span class="v">${item.intervalKm?fmtKm(item.intervalKm):''}${item.intervalKm&&item.intervalMonths?' / ':''}${item.intervalMonths?item.intervalMonths+' meses':''}</span></div>
+          <div>Última vez<br><span class="v">${item.lastDoneKm?fmtKm(item.lastDoneKm):'—'} ${item.lastDoneDate?'('+fmtDate(item.lastDoneDate)+')':''}</span></div>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:10px">
+          <button class="btn btn-ghost btn-sm" onclick="openMaintForm('${item.id}','${carId}')">Editar</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteMaintItem('${item.id}')">Eliminar</button>
+        </div>
+      </div>`;
+    });
+  }
+  el.innerHTML = html;
+}
+function openMaintForm(itemId, carId){
+  const item = itemId ? DB.maint.find(m=>m.id===itemId) : null;
+  const html = `
+    <div class="modal">
+      <div class="modal-head"><h3>${item?'Editar ítem':'Nuevo ítem de mantenimiento'}</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
+      <input type="hidden" id="f-carId" value="${carId}">
+      <div class="field"><label>Nombre*</label><input id="f-name" value="${escapeHtml(item?.name||'')}" placeholder="Ej: Cambio de aceite"></div>
+      <div class="field-row">
+        <div class="field"><label>Intervalo (km)</label><input id="f-intervalKm" type="number" value="${item?.intervalKm??''}" placeholder="Opcional"></div>
+        <div class="field"><label>Intervalo (meses)</label><input id="f-intervalMonths" type="number" value="${item?.intervalMonths??''}" placeholder="Opcional"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Último realizado (km)</label><input id="f-lastDoneKm" type="number" value="${item?.lastDoneKm??''}" placeholder="Opcional"></div>
+        <div class="field"><label>Última fecha</label><input id="f-lastDoneDate" type="date" value="${item?.lastDoneDate||''}"></div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary btn-block" onclick="saveMaintItem('${itemId||''}')">Guardar</button>
+      </div>
+    </div>`;
+  openModal(html);
+}
+function saveMaintItem(itemId){
+  const name = document.getElementById('f-name').value.trim();
+  if(!name){ toast('Ingresá un nombre'); return; }
+  const intervalKm = Number(document.getElementById('f-intervalKm').value)||null;
+  const intervalMonths = Number(document.getElementById('f-intervalMonths').value)||null;
+  if(!intervalKm && !intervalMonths){ toast('Definí al menos un intervalo (km o meses)'); return; }
+  const data = {
+    carId: document.getElementById('f-carId').value,
+    name, intervalKm, intervalMonths,
+    lastDoneKm: Number(document.getElementById('f-lastDoneKm').value)||null,
+    lastDoneDate: document.getElementById('f-lastDoneDate').value || null,
+  };
+  if(itemId){ Object.assign(DB.maint.find(m=>m.id===itemId), data); }
+  else { DB.maint.push(Object.assign({id:uid()}, data)); }
+  saveDB(); closeModal(); toast('Ítem guardado'); renderAll();
+}
+function deleteMaintItem(itemId){
+  DB.maint = DB.maint.filter(m=>m.id!==itemId);
+  saveDB(); toast('Ítem eliminado'); renderAll();
+}
+function addStandardPlan(carId){
+  const existingNames = new Set(maintByCar(carId).map(m=>m.name));
+  let added = 0;
+  DEFAULT_MAINT_TEMPLATES.forEach(t=>{
+    if(!existingNames.has(t.name)){
+      DB.maint.push({id:uid(), carId, name:t.name, intervalKm:t.intervalKm, intervalMonths:t.intervalMonths, lastDoneKm:null, lastDoneDate:null});
+      added++;
+    }
+  });
+  saveDB();
+  toast(added>0 ? `Se agregaron ${added} ítems estándar` : 'El plan estándar ya estaba completo');
+  renderAll();
+}
+
+function noCarMsg(){
+  return `<div class="card"><h3>Sin vehículos</h3><p class="help-text">Agregá primero un vehículo en la pestaña "Autos".</p><button class="btn btn-primary btn-block" onclick="goSection('cars')">Ir a Autos</button></div>`;
+}
+
+/* ============== RENDER: BACKUP ============== */
+function renderBackup(){
+  const el = document.getElementById('sec-backup');
+  const stats = `${DB.cars.length} vehículo(s), ${DB.fuel.length} carga(s) de combustible, ${DB.expenses.length} gasto(s), ${DB.maint.length} ítem(s) de mantenimiento`;
+  el.innerHTML = `
+    <div class="section-title"><h2>Copia de seguridad</h2></div>
+    <div class="card">
+      <h3>Datos actuales</h3>
+      <p class="help-text">${stats}</p>
+    </div>
+    <div class="card">
+      <h3>Exportar</h3>
+      <p class="help-text">Descargá un archivo con todos tus datos. Guardalo en un lugar seguro (Drive, email, etc.) para no perder tu información si cambiás de celular o borrás el navegador.</p>
+      <button class="btn btn-primary btn-block" onclick="exportData()">Exportar copia de seguridad</button>
+    </div>
+    <div class="card">
+      <h3>Importar</h3>
+      <p class="help-text">Restaurá datos desde un archivo exportado previamente. <b>Esto reemplaza todos los datos actuales.</b></p>
+      <input type="file" id="importFile" accept="application/json" style="display:none" onchange="importData(this.files[0])">
+      <button class="btn btn-ghost btn-block" onclick="document.getElementById('importFile').click()">Importar copia de seguridad</button>
+    </div>
+  `;
+}
+function exportData(){
+  const blob = new Blob([JSON.stringify(DB, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const ts = new Date().toISOString().slice(0,10);
+  a.href = url; a.download = `autogestor_backup_${ts}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  toast('Copia exportada');
+}
+function importData(file){
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    try{
+      const parsed = JSON.parse(e.target.result);
+      if(!parsed || !Array.isArray(parsed.cars)){ toast('Archivo inválido'); return; }
+      if(!confirm('Esto reemplazará todos los datos actuales con el contenido del archivo. ¿Continuar?')) return;
+      DB = Object.assign(defaultDB(), parsed);
+      saveDB();
+      currentCarFilter = 'all';
+      toast('Datos importados correctamente');
+      renderAll();
+    }catch(err){ toast('No se pudo leer el archivo'); console.error(err); }
+  };
+  reader.readAsText(file);
+}
+
+/* ============== MASTER RENDER ============== */
+function renderAll(){
+  renderCarChips();
+  renderDashboard();
+  renderCars();
+  renderFuel();
+  renderExpenses();
+  renderMaint();
+  renderBackup();
+}
+renderAll();
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  });
+}
+</script>
+</body>
+</html>
