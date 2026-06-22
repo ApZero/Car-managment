@@ -24,6 +24,12 @@ Abrí la URL en Chrome → menú (⋮) → **Agregar a pantalla de inicio** / **
 
 Los ítems del "plan estándar" (cambio de aceite, neumáticos, bujías, etc.) usan intervalos genéricos de referencia, no datos específicos de tu modelo exacto — la app no tiene una base de datos de fabricantes. Editá los km/meses de cada ítem según el manual de tu vehículo para que las alertas sean precisas.
 
+## Novedades (v2)
+
+- **Combustible**: ahora con octanaje y estación, más un botón **Importar Excel** que lee un `.xlsx`/`.xls`/`.csv` y reconoce columnas comunes (Fecha, Km, Litros, Costo, Precio/Litro, Estación, Octanaje, Tanque lleno) en español. Muestra una vista previa antes de confirmar, y detecta posibles duplicados.
+- **Gastos**: el kilometraje ahora es opcional (útil para cosas como limpiaparabrisas que no siempre recordás el km). Se puede vincular un gasto a **varios** ítems de mantenimiento a la vez. Las categorías son editables desde el botón "Categorías" en la pestaña Gastos. El historial separa los gastos por año con el total de cada uno.
+- **Neumáticos**: nueva sub-pestaña dentro de Mantenimiento para registrar cada neumático (marca, modelo, medida, posición, costo, km de instalación) y ver los km recorridos o el detalle de su retiro.
+
 ## Estructura de archivos
 
 ```

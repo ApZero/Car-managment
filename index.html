@@ -9,6 +9,7 @@
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 :root{
   --bg:#13151A;
@@ -234,6 +235,46 @@ canvas{width:100%;display:block;}
 
 .help-text{font-size:12.5px;color:var(--text-dim);line-height:1.5;margin-bottom:14px;}
 .divider{height:1px;background:var(--line);margin:16px 0;}
+
+/* Year separators */
+.year-sep{
+  display:flex;justify-content:space-between;align-items:baseline;
+  padding:14px 0 8px;margin-top:4px;
+  border-bottom:1px solid var(--line);
+}
+.year-sep .y{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:17px;color:var(--accent);letter-spacing:0.04em;}
+.year-sep .t{font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--text-dim);}
+
+/* Sub-tabs (pills) within a section */
+.subtabs{display:flex;gap:8px;margin-bottom:14px;}
+.subtab{flex:1;text-align:center;padding:9px 0;border-radius:8px;background:var(--panel-2);border:1px solid var(--line);font-size:13px;font-weight:600;color:var(--text-dim);}
+.subtab.active{background:rgba(255,159,28,0.14);border-color:var(--accent-dim);color:var(--accent);}
+
+/* Multi-select checklist for linking maintenance items */
+.check-list{display:flex;flex-direction:column;gap:8px;max-height:200px;overflow-y:auto;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:10px;}
+.check-item{display:flex;align-items:center;gap:9px;}
+.check-item input{width:18px;height:18px;flex:0 0 auto;}
+.check-item label{font-size:13.5px;margin:0;color:var(--text);}
+
+/* Category manager */
+.cat-row{display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--line);}
+.cat-row:last-child{border-bottom:none;}
+.cat-row .cat-name{flex:1;font-size:14px;font-weight:600;}
+.cat-row .cat-count{font-size:11.5px;color:var(--text-dim);}
+
+/* Import preview */
+.import-table{width:100%;font-size:12.5px;border-collapse:collapse;margin-top:6px;}
+.import-table th{text-align:left;color:var(--text-dim);font-weight:600;padding:6px 6px;border-bottom:1px solid var(--line);font-size:11px;text-transform:uppercase;}
+.import-table td{padding:6px 6px;border-bottom:1px solid var(--line);font-family:'JetBrains Mono',monospace;}
+.import-table tr.skip td{color:var(--text-dim);text-decoration:line-through;opacity:0.6;}
+.import-summary{display:flex;gap:14px;margin:10px 0;font-size:12.5px;}
+.import-summary b{color:var(--text);}
+.scrollx{max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:8px;}
+
+/* Tire cards */
+.tire-pos-badge{font-size:10.5px;padding:3px 8px;border-radius:5px;font-weight:700;background:rgba(79,195,217,0.15);color:var(--cool);text-transform:uppercase;}
+.tire-status-activo{color:var(--good);}
+.tire-status-retirado{color:var(--text-dim);}
 </style>
 </head>
 <body>
@@ -297,11 +338,12 @@ canvas{width:100%;display:block;}
 <script>
 /* ============== STORAGE ============== */
 const DB_KEY = 'autogestor_v1';
+const DEFAULT_CATEGORIES = ['Mantenimiento','Repuesto','Accesorio','Seguro','Impuestos/Documentación','Lavado/Detailing','Otro'];
 let DB = loadDB();
 let currentCarFilter = 'all'; // 'all' or carId
 let activeSection = 'dashboard';
 
-function defaultDB(){ return { cars: [], fuel: [], expenses: [], maint: [] }; }
+function defaultDB(){ return { cars: [], fuel: [], expenses: [], maint: [], tires: [], categories: [...DEFAULT_CATEGORIES] }; }
 function loadDB(){
   try{
     const raw = localStorage.getItem(DB_KEY);
@@ -449,6 +491,7 @@ function deleteCar(carId){
   DB.fuel = DB.fuel.filter(f=>f.carId!==carId);
   DB.expenses = DB.expenses.filter(e=>e.carId!==carId);
   DB.maint = DB.maint.filter(m=>m.carId!==carId);
+  DB.tires = DB.tires.filter(t=>t.carId!==carId);
   saveDB();
 }
 
@@ -554,7 +597,7 @@ function renderDashboard(){
   let feedHtml = feed.length ? feed.map(f=>`
     <div class="feed-item">
       <div class="feed-icon">${f.type==='fuel'?fuelIcon:wrenchIcon}</div>
-      <div class="feed-main"><div class="t1">${escapeHtml(f.label)}</div><div class="t2">${fmtDate(f.date)} · ${fmtKm(f.km)} · ${escapeHtml(f.sub)}</div></div>
+      <div class="feed-main"><div class="t1">${escapeHtml(f.label)}</div><div class="t2">${fmtDate(f.date)}${f.km!=null?' · '+fmtKm(f.km):''} · ${escapeHtml(f.sub)}</div></div>
       <div class="feed-cost">${fmtGs(f.cost)}</div>
     </div>`).join('') : `<div class="empty">Todavía no hay registros.</div>`;
 
@@ -755,8 +798,11 @@ function renderFuel(){
 
   let html = `
     <div class="section-title"><h2>Combustible</h2></div>
-    <button class="btn btn-primary btn-block" onclick="openFuelForm()">+ Agregar carga</button>
-    <div style="height:14px"></div>
+    <div class="fab-row">
+      <button class="btn btn-primary" style="flex:1" onclick="openFuelForm()">+ Agregar carga</button>
+      <button class="btn btn-ghost" style="flex:0 0 auto" onclick="document.getElementById('fuelImportFile').click()">Importar Excel</button>
+    </div>
+    <input type="file" id="fuelImportFile" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleFuelImportFile(this.files[0]); this.value='';">
     <div class="stat-grid">
       <div class="stat"><div class="label">Gastado en combustible</div><div class="value">${fmtGs(totalCost)}</div></div>
       <div class="stat"><div class="label">Precio promedio / L</div><div class="value cool">${fmtGs(avgPrice)}</div></div>
@@ -771,7 +817,7 @@ function renderFuel(){
       return `<div class="row-item">
         <div class="row-main">
           <div class="l1">${fmtDate(f.date)} ${DB.cars.length>1?'· '+escapeHtml(car.alias):''} ${f.fullTank?'⛽':''}</div>
-          <div class="l2">${fmtKm(f.km)} · ${fmtL(f.liters)} · ${fmtGs(pricePerL)}/L${f.station?' · '+escapeHtml(f.station):''}</div>
+          <div class="l2">${fmtKm(f.km)} · ${fmtL(f.liters)} · ${fmtGs(pricePerL)}/L${f.octane?' · '+f.octane+' oct':''}${f.station?' · '+escapeHtml(f.station):''}</div>
         </div>
         <div class="row-cost">${fmtGs(f.totalCost)}
           <span class="sub" style="cursor:pointer;text-decoration:underline" onclick="openFuelForm('${f.id}')">editar</span>
@@ -800,8 +846,11 @@ function openFuelForm(entryId){
         <div class="field"><label>Litros</label><input id="f-liters" type="number" step="0.01" value="${entry?.liters??''}"></div>
         <div class="field"><label>Costo total (Gs.)</label><input id="f-totalCost" type="number" value="${entry?.totalCost??''}"></div>
       </div>
+      <div class="field-row">
+        <div class="field"><label>Octanaje (opcional)</label><input id="f-octane" type="number" value="${entry?.octane??''}" placeholder="Ej: 95"></div>
+        <div class="field"><label>Estación / lugar (opcional)</label><input id="f-station" value="${escapeHtml(entry?.station||'')}"></div>
+      </div>
       <div class="checkbox-field"><input type="checkbox" id="f-fullTank" ${(!entry || entry.fullTank)?'checked':''}><label for="f-fullTank">Tanque lleno (necesario para calcular rendimiento)</label></div>
-      <div class="field"><label>Estación / lugar (opcional)</label><input id="f-station" value="${escapeHtml(entry?.station||'')}"></div>
       <div class="field"><label>Notas</label><textarea id="f-notes" rows="2">${escapeHtml(entry?.notes||'')}</textarea></div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-primary btn-block" onclick="saveFuel('${entryId||''}')">Guardar</button>
@@ -815,10 +864,12 @@ function saveFuel(entryId){
   const liters = Number(document.getElementById('f-liters').value);
   const totalCost = Number(document.getElementById('f-totalCost').value);
   if(!km || !liters || !totalCost){ toast('Completá kilometraje, litros y costo'); return; }
+  const octaneRaw = document.getElementById('f-octane').value;
   const data = {
     carId: document.getElementById('f-carId').value,
     date: document.getElementById('f-date').value || todayStr(),
     km, liters, totalCost,
+    octane: octaneRaw==='' ? null : Number(octaneRaw),
     fullTank: document.getElementById('f-fullTank').checked,
     station: document.getElementById('f-station').value.trim(),
     notes: document.getElementById('f-notes').value.trim(),
@@ -832,8 +883,151 @@ function deleteFuel(entryId){
   saveDB(); closeModal(); toast('Carga eliminada'); renderAll();
 }
 
-/* ============== RENDER: EXPENSES ============== */
-const CATEGORIES = ['Mantenimiento','Repuesto','Accesorio','Seguro','Impuestos/Documentación','Lavado/Detailing','Otro'];
+/* ============== EXCEL IMPORT (FUEL) ============== */
+let _pendingImportRows = [];
+function normHeader(h){
+  return String(h==null?'':h).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+}
+const IMPORT_SYNONYMS = {
+  date: ['fecha','date'],
+  km: ['km','kilometraje','kilometros','odometro'],
+  liters: ['litros','lts','litros cargados','l'],
+  totalCost: ['total','costo','costo total','importe','monto','precio total','valor','gs'],
+  pricePerLiter: ['precio/litro','preciolitro','precio por litro','p/l','precio litro','precio unitario'],
+  station: ['estacion','estacion de servicio','lugar','surtidor','servicentro'],
+  octane: ['octanaje','octanos','octano'],
+  fullTank: ['tanque lleno','lleno','full','tanque'],
+};
+function findCol(headers, keys){
+  for(let i=0;i<headers.length;i++){
+    const h = normHeader(headers[i]);
+    if(keys.includes(h)) return i;
+  }
+  return -1;
+}
+function parseNum(v){
+  if(v==null || v==='') return null;
+  if(typeof v==='number') return v;
+  let s = String(v).trim();
+  if(!s) return null;
+  if(/^\d{1,3}(\.\d{3})+,\d+$/.test(s)){ s = s.replace(/\./g,'').replace(',','.'); }
+  else if(/^\d{1,3}(\.\d{3})+$/.test(s)){ s = s.replace(/\./g,''); }
+  else if(/^\d+,\d+$/.test(s)){ s = s.replace(',','.'); }
+  else { s = s.replace(/[^0-9.\-]/g,''); }
+  const n = parseFloat(s);
+  return isNaN(n) ? null : n;
+}
+function parseExcelDate(v){
+  if(v==null || v==='') return null;
+  if(v instanceof Date) return v.toISOString().slice(0,10);
+  if(typeof v==='number'){
+    const ms = Math.round((v-25569)*86400*1000);
+    const d = new Date(ms);
+    if(isNaN(d)) return null;
+    return d.toISOString().slice(0,10);
+  }
+  const s = String(v).trim();
+  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if(m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+  m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if(m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  const parsed = new Date(s);
+  if(!isNaN(parsed)) return parsed.toISOString().slice(0,10);
+  return null;
+}
+function parseFullTank(v){
+  if(v==null || v==='') return true;
+  if(typeof v==='boolean') return v;
+  const s = String(v).toLowerCase().trim();
+  return ['si','sí','x','full','lleno','1','true','yes'].includes(s);
+}
+function handleFuelImportFile(file){
+  if(!file) return;
+  if(typeof XLSX==='undefined'){ toast('Todavía se está cargando el lector de Excel, esperá un segundo e intentá de nuevo'); return; }
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    try{
+      const wb = XLSX.read(e.target.result, {type:'array', cellDates:true});
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, {header:1, raw:true, defval:''});
+      if(rows.length<2){ toast('El archivo no tiene filas de datos'); return; }
+      const headers = rows[0];
+      const col = {
+        date: findCol(headers, IMPORT_SYNONYMS.date),
+        km: findCol(headers, IMPORT_SYNONYMS.km),
+        liters: findCol(headers, IMPORT_SYNONYMS.liters),
+        totalCost: findCol(headers, IMPORT_SYNONYMS.totalCost),
+        pricePerLiter: findCol(headers, IMPORT_SYNONYMS.pricePerLiter),
+        station: findCol(headers, IMPORT_SYNONYMS.station),
+        octane: findCol(headers, IMPORT_SYNONYMS.octane),
+        fullTank: findCol(headers, IMPORT_SYNONYMS.fullTank),
+      };
+      if(col.date===-1 || (col.liters===-1 && col.totalCost===-1)){
+        toast('No se encontraron columnas de fecha/costo/litros reconocibles'); return;
+      }
+      const parsed = rows.slice(1).filter(r=>r.some(c=>c!=='')).map(r=>{
+        const date = col.date>-1 ? parseExcelDate(r[col.date]) : null;
+        let liters = col.liters>-1 ? parseNum(r[col.liters]) : null;
+        let totalCost = col.totalCost>-1 ? parseNum(r[col.totalCost]) : null;
+        const pricePerLiter = col.pricePerLiter>-1 ? parseNum(r[col.pricePerLiter]) : null;
+        if(totalCost==null && liters!=null && pricePerLiter!=null) totalCost = Math.round(liters*pricePerLiter);
+        if(liters==null && totalCost!=null && pricePerLiter!=null) liters = totalCost/pricePerLiter;
+        const km = col.km>-1 ? parseNum(r[col.km]) : null;
+        const station = col.station>-1 ? String(r[col.station]||'').trim() : '';
+        const octane = col.octane>-1 ? parseNum(r[col.octane]) : null;
+        const fullTank = col.fullTank>-1 ? parseFullTank(r[col.fullTank]) : true;
+        const skip = !date || totalCost==null || liters==null;
+        const isDup = !skip && DB.fuel.some(f=>f.date===date && f.km===km && Math.abs((f.liters||0)-(liters||0))<0.05);
+        return {date, km, liters, totalCost, station, octane, fullTank, skip: skip||isDup, skipReason: skip?'datos insuficientes':(isDup?'duplicado':null)};
+      });
+      _pendingImportRows = parsed;
+      showImportPreview();
+    }catch(err){ console.error(err); toast('No se pudo leer el archivo'); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+function showImportPreview(){
+  const defaultCar = currentCarFilter!=='all' ? currentCarFilter : DB.cars[0].id;
+  const okCount = _pendingImportRows.filter(r=>!r.skip).length;
+  const skipCount = _pendingImportRows.length - okCount;
+  const rowsHtml = _pendingImportRows.map(r=>`
+    <tr class="${r.skip?'skip':''}">
+      <td>${r.date||'—'}</td>
+      <td>${r.km!=null?numFmt(r.km,0):'—'}</td>
+      <td>${r.liters!=null?numFmt(r.liters,1):'—'}</td>
+      <td>${r.totalCost!=null?numFmt(r.totalCost,0):'—'}</td>
+      <td>${r.octane||'—'}</td>
+      <td>${r.skip?(r.skipReason||'omitido'):'OK'}</td>
+    </tr>`).join('');
+  const html = `
+    <div class="modal">
+      <div class="modal-head"><h3>Importar combustible</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
+      ${DB.cars.length>1?`<div class="field"><label>Asignar todas las filas al vehículo</label><select id="importCarId">${carOptionsHtml(defaultCar)}</select></div>`:`<input type="hidden" id="importCarId" value="${defaultCar}">`}
+      <div class="import-summary"><span><b>${okCount}</b> se importarán</span><span><b>${skipCount}</b> se omiten</span></div>
+      <div class="scrollx"><table class="import-table">
+        <tr><th>Fecha</th><th>Km</th><th>Litros</th><th>Costo</th><th>Oct.</th><th>Estado</th></tr>
+        ${rowsHtml}
+      </table></div>
+      <p class="help-text" style="margin-top:10px">Las filas tachadas se omiten por falta de datos o por ser posibles duplicados de cargas ya existentes.</p>
+      <button class="btn btn-primary btn-block" ${okCount===0?'disabled':''} onclick="confirmFuelImport()">Importar ${okCount} carga(s)</button>
+    </div>`;
+  openModal(html);
+}
+function confirmFuelImport(){
+  const carId = document.getElementById('importCarId').value;
+  let count = 0;
+  _pendingImportRows.forEach(r=>{
+    if(r.skip) return;
+    DB.fuel.push({
+      id: uid(), carId, date: r.date, km: r.km, liters: r.liters, totalCost: Math.round(r.totalCost),
+      octane: r.octane, fullTank: r.fullTank, station: r.station, notes: 'Importado desde Excel',
+    });
+    count++;
+  });
+  saveDB(); _pendingImportRows = []; closeModal(); toast(`${count} carga(s) importada(s)`); renderAll();
+}
+
+
 function categoryBadgeClass(cat){
   if(cat==='Mantenimiento') return 'badge-mant';
   if(cat==='Repuesto') return 'badge-rep';
@@ -852,8 +1046,10 @@ function renderExpenses(){
 
   let html = `
     <div class="section-title"><h2>Gastos</h2></div>
-    <button class="btn btn-primary btn-block" onclick="openExpenseForm()">+ Agregar gasto</button>
-    <div style="height:14px"></div>
+    <div class="fab-row">
+      <button class="btn btn-primary" style="flex:1" onclick="openExpenseForm()">+ Agregar gasto</button>
+      <button class="btn btn-ghost" style="flex:0 0 auto" onclick="openCategoryManager()">Categorías</button>
+    </div>
     <div class="stat-grid">
       <div class="stat"><div class="label">Total gastos</div><div class="value">${fmtGs(total)}</div></div>
       <div class="stat"><div class="label">Mayor categoría</div><div class="value cool">${Object.keys(byCat).length?Object.entries(byCat).sort((a,b)=>b[1]-a[1])[0][0]:'—'}</div></div>
@@ -862,19 +1058,27 @@ function renderExpenses(){
   `;
   if(entries.length===0){ html += `<div class="empty">Todavía no hay gastos registrados.</div>`; }
   else {
-    html += entries.map(e=>{
+    let lastYear = null;
+    entries.forEach(e=>{
+      const y = e.date ? e.date.slice(0,4) : '—';
+      if(y!==lastYear){
+        const yearTotal = entries.filter(x=>(x.date||'').slice(0,4)===y).reduce((s,x)=>s+Number(x.cost||0),0);
+        html += `<div class="year-sep"><span class="y">${y}</span><span class="t">${fmtGs(yearTotal)}</span></div>`;
+        lastYear = y;
+      }
       const car = getCar(e.carId);
-      return `<div class="row-item">
+      const linkedNames = (e.linkedMaintIds||[]).map(id=>DB.maint.find(m=>m.id===id)?.name).filter(Boolean);
+      html += `<div class="row-item">
         <span class="badge ${categoryBadgeClass(e.category)}">${escapeHtml(e.category)}</span>
         <div class="row-main">
           <div class="l1">${escapeHtml(e.description||e.category)}</div>
-          <div class="l2">${fmtDate(e.date)} ${DB.cars.length>1?'· '+escapeHtml(car.alias):''} · ${fmtKm(e.km)}</div>
+          <div class="l2">${fmtDate(e.date)} ${DB.cars.length>1?'· '+escapeHtml(car.alias):''}${e.km!=null?' · '+fmtKm(e.km):''}${linkedNames.length?' · '+linkedNames.map(escapeHtml).join(', '):''}</div>
         </div>
         <div class="row-cost">${fmtGs(e.cost)}
           <span class="sub" style="cursor:pointer;text-decoration:underline" onclick="openExpenseForm('${e.id}')">editar</span>
         </div>
       </div>`;
-    }).join('');
+    });
   }
   html += `</div>`;
   el.innerHTML = html;
@@ -882,23 +1086,23 @@ function renderExpenses(){
 function openExpenseForm(entryId){
   const entry = entryId ? DB.expenses.find(e=>e.id===entryId) : null;
   const defaultCar = entry?.carId || (currentCarFilter!=='all'?currentCarFilter:DB.cars[0].id);
-  const maintOptions = maintByCar(defaultCar).map(m=>`<option value="${m.id}" ${entry?.linkedMaintId===m.id?'selected':''}>${escapeHtml(m.name)}</option>`).join('');
+  const linkedIds = entry?.linkedMaintIds || (entry?.linkedMaintId ? [entry.linkedMaintId] : []);
   const html = `
     <div class="modal">
       <div class="modal-head"><h3>${entry?'Editar gasto':'Nuevo gasto'}</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
-      ${DB.cars.length>1?`<div class="field"><label>Vehículo</label><select id="f-carId" onchange="refreshMaintLinkOptions()">${carOptionsHtml(defaultCar)}</select></div>`:`<input type="hidden" id="f-carId" value="${defaultCar}">`}
+      ${DB.cars.length>1?`<div class="field"><label>Vehículo</label><select id="f-carId" onchange="refreshMaintLinkChecklist()">${carOptionsHtml(defaultCar)}</select></div>`:`<input type="hidden" id="f-carId" value="${defaultCar}">`}
       <div class="field"><label>Categoría</label>
-        <select id="f-category" onchange="toggleMaintLink()">${CATEGORIES.map(c=>`<option ${entry?.category===c?'selected':''}>${c}</option>`).join('')}</select>
+        <select id="f-category" onchange="toggleMaintLink()">${DB.categories.map(c=>`<option ${entry?.category===c?'selected':''}>${escapeHtml(c)}</option>`).join('')}</select>
       </div>
       <div class="field-row">
         <div class="field"><label>Fecha</label><input id="f-date" type="date" value="${entry?.date||todayStr()}"></div>
-        <div class="field"><label>Kilometraje</label><input id="f-km" type="number" value="${entry?.km??''}"></div>
+        <div class="field"><label>Kilometraje (opcional)</label><input id="f-km" type="number" value="${entry?.km??''}" placeholder="No estoy seguro"></div>
       </div>
       <div class="field"><label>Descripción (qué se hizo)</label><input id="f-description" value="${escapeHtml(entry?.description||'')}" placeholder="Ej: Cambio de aceite y filtro"></div>
       <div class="field"><label>Costo (Gs.)</label><input id="f-cost" type="number" value="${entry?.cost??''}"></div>
       <div class="field" id="maintLinkField" style="display:${(entry?.category==='Mantenimiento'||!entry)?'block':'none'}">
-        <label>Vincular a ítem de mantenimiento (opcional)</label>
-        <select id="f-linkedMaintId"><option value="">— Ninguno —</option>${maintOptions}</select>
+        <label>Vincular a ítem(s) de mantenimiento (opcional)</label>
+        <div class="check-list" id="maintCheckList">${maintCheckListHtml(defaultCar, linkedIds)}</div>
       </div>
       <div class="field"><label>Notas</label><textarea id="f-notes" rows="2">${escapeHtml(entry?.notes||'')}</textarea></div>
       <div style="display:flex;gap:8px">
@@ -909,20 +1113,29 @@ function openExpenseForm(entryId){
   openModal(html);
   toggleMaintLink();
 }
+function maintCheckListHtml(carId, selectedIds){
+  const items = maintByCar(carId);
+  if(items.length===0) return `<div class="empty" style="padding:2px 0">Este vehículo no tiene ítems de mantenimiento todavía.</div>`;
+  return items.map(m=>`
+    <div class="check-item">
+      <input type="checkbox" id="mc-${m.id}" value="${m.id}" ${selectedIds.includes(m.id)?'checked':''}>
+      <label for="mc-${m.id}">${escapeHtml(m.name)}</label>
+    </div>`).join('');
+}
 function toggleMaintLink(){
   const cat = document.getElementById('f-category').value;
   document.getElementById('maintLinkField').style.display = cat==='Mantenimiento' ? 'block':'none';
 }
-function refreshMaintLinkOptions(){
+function refreshMaintLinkChecklist(){
   const carId = document.getElementById('f-carId').value;
-  const sel = document.getElementById('f-linkedMaintId');
-  sel.innerHTML = '<option value="">— Ninguno —</option>' + maintByCar(carId).map(m=>`<option value="${m.id}">${escapeHtml(m.name)}</option>`).join('');
+  document.getElementById('maintCheckList').innerHTML = maintCheckListHtml(carId, []);
 }
 function saveExpense(entryId){
-  const km = Number(document.getElementById('f-km').value);
+  const kmRaw = document.getElementById('f-km').value;
+  const km = kmRaw==='' ? null : Number(kmRaw);
   const cost = Number(document.getElementById('f-cost').value);
-  if(!km || !cost){ toast('Completá kilometraje y costo'); return; }
-  const linkedMaintId = document.getElementById('f-linkedMaintId')?.value || null;
+  if(!cost){ toast('Completá el costo'); return; }
+  const linkedMaintIds = Array.from(document.querySelectorAll('#maintCheckList input[type=checkbox]:checked')).map(i=>i.value);
   const data = {
     carId: document.getElementById('f-carId').value,
     category: document.getElementById('f-category').value,
@@ -931,17 +1144,17 @@ function saveExpense(entryId){
     description: document.getElementById('f-description').value.trim(),
     cost,
     notes: document.getElementById('f-notes').value.trim(),
-    linkedMaintId: linkedMaintId || null,
+    linkedMaintIds,
   };
-  if(entryId){ Object.assign(DB.expenses.find(e=>e.id===entryId), data); }
+  if(entryId){ const old=DB.expenses.find(e=>e.id===entryId); delete old.linkedMaintId; Object.assign(old, data); }
   else { DB.expenses.push(Object.assign({id:uid()}, data)); }
 
-  if(data.linkedMaintId){
-    const item = DB.maint.find(m=>m.id===data.linkedMaintId);
-    if(item && (item.lastDoneKm==null || data.km>item.lastDoneKm)){
-      item.lastDoneKm = data.km; item.lastDoneDate = data.date;
-    }
-  }
+  linkedMaintIds.forEach(id=>{
+    const item = DB.maint.find(m=>m.id===id);
+    if(!item) return;
+    if(data.km!=null && (item.lastDoneKm==null || data.km>item.lastDoneKm)) item.lastDoneKm = data.km;
+    if(!item.lastDoneDate || data.date>item.lastDoneDate) item.lastDoneDate = data.date;
+  });
   saveDB(); closeModal(); toast('Gasto guardado'); renderAll();
 }
 function deleteExpense(entryId){
@@ -949,22 +1162,84 @@ function deleteExpense(entryId){
   saveDB(); closeModal(); toast('Gasto eliminado'); renderAll();
 }
 
-/* ============== RENDER: MAINTENANCE ============== */
+/* ============== CATEGORY MANAGER ============== */
+function openCategoryManager(){
+  renderCategoryManagerModal();
+}
+function renderCategoryManagerModal(){
+  const rows = DB.categories.map((c,i)=>{
+    const count = DB.expenses.filter(e=>e.category===c).length;
+    return `<div class="cat-row">
+      <span class="cat-name">${escapeHtml(c)}</span>
+      <span class="cat-count">${count} gasto(s)</span>
+      <button class="icon-btn" onclick="renameCategory(${i})" title="Renombrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
+      <button class="icon-btn" onclick="deleteCategory(${i})" title="Eliminar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg></button>
+    </div>`;
+  }).join('');
+  const html = `
+    <div class="modal">
+      <div class="modal-head"><h3>Categorías de gastos</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
+      <div style="margin-bottom:14px">${rows}</div>
+      <div class="field-row">
+        <div class="field" style="margin-bottom:0"><input id="newCatName" placeholder="Nueva categoría"></div>
+        <button class="btn btn-primary" onclick="addCategory()">Agregar</button>
+      </div>
+    </div>`;
+  openModal(html);
+}
+function addCategory(){
+  const input = document.getElementById('newCatName');
+  const name = input.value.trim();
+  if(!name){ toast('Ingresá un nombre'); return; }
+  if(DB.categories.some(c=>c.toLowerCase()===name.toLowerCase())){ toast('Ya existe esa categoría'); return; }
+  DB.categories.push(name);
+  saveDB(); renderCategoryManagerModal(); toast('Categoría agregada');
+}
+function renameCategory(index){
+  const oldName = DB.categories[index];
+  const newName = prompt('Nuevo nombre para "'+oldName+'":', oldName);
+  if(!newName || !newName.trim() || newName.trim()===oldName) return;
+  const trimmed = newName.trim();
+  DB.categories[index] = trimmed;
+  DB.expenses.forEach(e=>{ if(e.category===oldName) e.category=trimmed; });
+  saveDB(); renderCategoryManagerModal(); toast('Categoría actualizada'); renderAll();
+}
+function deleteCategory(index){
+  const name = DB.categories[index];
+  const count = DB.expenses.filter(e=>e.category===name).length;
+  if(count>0){ toast(`No se puede eliminar: ${count} gasto(s) usan "${name}"`); return; }
+  if(DB.categories.length<=1){ toast('Debe quedar al menos una categoría'); return; }
+  DB.categories.splice(index,1);
+  saveDB(); renderCategoryManagerModal(); toast('Categoría eliminada');
+}
+
+
+/* ============== RENDER: MAINTENANCE (wrapper with sub-tabs) ============== */
+let maintSubTab = 'plan'; // 'plan' | 'tires'
 function renderMaint(){
   const el = document.getElementById('sec-maint');
   if(DB.cars.length===0){ el.innerHTML = noCarMsg(); return; }
   const carId = currentCarFilter!=='all' ? currentCarFilter : DB.cars[0].id;
-  const car = getCar(carId);
-  let items = maintByCar(carId);
-
   let selectorHtml = '';
   if(DB.cars.length>1 && currentCarFilter==='all'){
-    selectorHtml = `<div class="field"><label>Mostrando plan de:</label><select class="select-inline" onchange="currentCarFilter=this.value;renderAll();">${carOptionsHtml(carId)}</select></div>`;
+    selectorHtml = `<div class="field"><label>Mostrando datos de:</label><select class="select-inline" onchange="currentCarFilter=this.value;renderAll();">${carOptionsHtml(carId)}</select></div>`;
   }
-
-  let html = `
+  el.innerHTML = `
     <div class="section-title"><h2>Mantenimiento</h2></div>
     ${selectorHtml}
+    <div class="subtabs">
+      <div class="subtab ${maintSubTab==='plan'?'active':''}" onclick="maintSubTab='plan';renderMaint();">Plan</div>
+      <div class="subtab ${maintSubTab==='tires'?'active':''}" onclick="maintSubTab='tires';renderMaint();">Neumáticos</div>
+    </div>
+    <div id="maintSubContent"></div>
+  `;
+  if(maintSubTab==='plan') renderMaintPlan(carId);
+  else renderTires(carId);
+}
+function renderMaintPlan(carId){
+  const el = document.getElementById('maintSubContent');
+  let items = maintByCar(carId);
+  let html = `
     <div class="fab-row">
       <button class="btn btn-primary" style="flex:1" onclick="openMaintForm(null,'${carId}')">+ Agregar ítem</button>
       <button class="btn btn-ghost" style="flex:1" onclick="addStandardPlan('${carId}')">Agregar plan estándar</button>
@@ -1063,6 +1338,114 @@ function addStandardPlan(carId){
   renderAll();
 }
 
+/* ============== RENDER: TIRES ============== */
+const TIRE_POSITIONS = ['Delantera izquierda','Delantera derecha','Trasera izquierda','Trasera derecha','Repuesto','Sin asignar'];
+function tiresByCar(carId){ return DB.tires.filter(t=>t.carId===carId); }
+function tireKmRecorridos(t){
+  if(t.kmInstalled==null) return null;
+  const end = t.status==='retirado' ? t.kmRetired : carCurrentKm(t.carId);
+  if(end==null) return null;
+  return Math.max(0, end - t.kmInstalled);
+}
+function renderTires(carId){
+  const el = document.getElementById('maintSubContent');
+  let tires = tiresByCar(carId).sort((a,b)=> (a.status==='activo'?0:1) - (b.status==='activo'?0:1));
+  let html = `
+    <div class="fab-row">
+      <button class="btn btn-primary btn-block" onclick="openTireForm(null,'${carId}')">+ Agregar neumático</button>
+    </div>
+  `;
+  if(tires.length===0){
+    html += `<div class="empty">Todavía no agregaste neumáticos para este vehículo.</div>`;
+  } else {
+    tires.forEach(t=>{
+      const km = tireKmRecorridos(t);
+      html += `
+      <div class="entity">
+        <div class="entity-head">
+          <div>
+            <div class="name" style="font-size:15px">${escapeHtml(t.brand||'')} ${escapeHtml(t.model||'')}</div>
+            <div class="sub">${escapeHtml(t.size||'sin medida')} ${t.purchaseDate?'· comprado '+fmtDate(t.purchaseDate):''}</div>
+          </div>
+          <span class="status-badge ${t.status==='activo'?'status-ok':''}" style="${t.status!=='activo'?'background:rgba(154,160,172,0.15);color:var(--text-dim)':''}">${t.status==='activo'?'Activo':'Retirado'}</span>
+        </div>
+        <div class="entity-stats">
+          <div><span class="tire-pos-badge">${escapeHtml(t.position||'Sin asignar')}</span></div>
+          <div>Km recorridos<br><span class="v">${km!=null?fmtKm(km):'—'}</span></div>
+          <div>Costo<br><span class="v">${t.cost?fmtGs(t.cost):'—'}</span></div>
+        </div>
+        ${t.status==='retirado'?`<div class="help-text" style="margin:8px 0 0">Retirado ${t.dateRetired?'el '+fmtDate(t.dateRetired):''} ${t.kmRetired!=null?'a los '+fmtKm(t.kmRetired):''}${t.notes?' · '+escapeHtml(t.notes):''}</div>`:(t.notes?`<div class="help-text" style="margin:8px 0 0">${escapeHtml(t.notes)}</div>`:'')}
+        <div style="display:flex;gap:6px;margin-top:10px">
+          <button class="btn btn-ghost btn-sm" onclick="openTireForm('${t.id}','${carId}')">Editar</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteTire('${t.id}')">Eliminar</button>
+        </div>
+      </div>`;
+    });
+  }
+  el.innerHTML = html;
+}
+function openTireForm(tireId, carId){
+  const t = tireId ? DB.tires.find(x=>x.id===tireId) : null;
+  const isRetired = t?.status==='retirado';
+  const html = `
+    <div class="modal">
+      <div class="modal-head"><h3>${t?'Editar neumático':'Nuevo neumático'}</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
+      <input type="hidden" id="f-carId" value="${carId}">
+      <div class="field-row">
+        <div class="field"><label>Marca</label><input id="f-brand" value="${escapeHtml(t?.brand||'')}" placeholder="Ej: Bridgestone"></div>
+        <div class="field"><label>Modelo</label><input id="f-model" value="${escapeHtml(t?.model||'')}" placeholder="Ej: Dueler"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Medida</label><input id="f-size" value="${escapeHtml(t?.size||'')}" placeholder="Ej: 265/65 R17"></div>
+        <div class="field"><label>Posición</label>
+          <select id="f-position">${TIRE_POSITIONS.map(p=>`<option ${t?.position===p?'selected':''}>${p}</option>`).join('')}</select>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Fecha de compra</label><input id="f-purchaseDate" type="date" value="${t?.purchaseDate||todayStr()}"></div>
+        <div class="field"><label>Costo (Gs.)</label><input id="f-cost" type="number" value="${t?.cost??''}"></div>
+      </div>
+      <div class="field"><label>Kilometraje al instalar (opcional)</label><input id="f-kmInstalled" type="number" value="${t?.kmInstalled??''}"></div>
+      <div class="checkbox-field"><input type="checkbox" id="f-retired" ${isRetired?'checked':''} onchange="document.getElementById('retiredFields').style.display=this.checked?'block':'none'"><label for="f-retired">Este neumático ya fue retirado</label></div>
+      <div id="retiredFields" style="display:${isRetired?'block':'none'}">
+        <div class="field-row">
+          <div class="field"><label>Fecha de retiro</label><input id="f-dateRetired" type="date" value="${t?.dateRetired||''}"></div>
+          <div class="field"><label>Km al retirar</label><input id="f-kmRetired" type="number" value="${t?.kmRetired??''}"></div>
+        </div>
+      </div>
+      <div class="field"><label>Notas (desgaste, motivo de cambio, etc.)</label><textarea id="f-notes" rows="2">${escapeHtml(t?.notes||'')}</textarea></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary btn-block" onclick="saveTire('${tireId||''}')">Guardar</button>
+        ${t?`<button class="btn btn-danger" onclick="deleteTire('${tireId}')">Eliminar</button>`:''}
+      </div>
+    </div>`;
+  openModal(html);
+}
+function saveTire(tireId){
+  const retired = document.getElementById('f-retired').checked;
+  const data = {
+    carId: document.getElementById('f-carId').value,
+    brand: document.getElementById('f-brand').value.trim(),
+    model: document.getElementById('f-model').value.trim(),
+    size: document.getElementById('f-size').value.trim(),
+    position: document.getElementById('f-position').value,
+    purchaseDate: document.getElementById('f-purchaseDate').value || null,
+    cost: Number(document.getElementById('f-cost').value)||0,
+    kmInstalled: document.getElementById('f-kmInstalled').value==='' ? null : Number(document.getElementById('f-kmInstalled').value),
+    status: retired ? 'retirado' : 'activo',
+    dateRetired: retired ? (document.getElementById('f-dateRetired').value||null) : null,
+    kmRetired: retired ? (document.getElementById('f-kmRetired').value==='' ? null : Number(document.getElementById('f-kmRetired').value)) : null,
+    notes: document.getElementById('f-notes').value.trim(),
+  };
+  if(tireId){ Object.assign(DB.tires.find(x=>x.id===tireId), data); }
+  else { DB.tires.push(Object.assign({id:uid()}, data)); }
+  saveDB(); closeModal(); toast('Neumático guardado'); renderAll();
+}
+function deleteTire(tireId){
+  DB.tires = DB.tires.filter(t=>t.id!==tireId);
+  saveDB(); closeModal(); toast('Neumático eliminado'); renderAll();
+}
+
 function noCarMsg(){
   return `<div class="card"><h3>Sin vehículos</h3><p class="help-text">Agregá primero un vehículo en la pestaña "Autos".</p><button class="btn btn-primary btn-block" onclick="goSection('cars')">Ir a Autos</button></div>`;
 }
@@ -1070,7 +1453,7 @@ function noCarMsg(){
 /* ============== RENDER: BACKUP ============== */
 function renderBackup(){
   const el = document.getElementById('sec-backup');
-  const stats = `${DB.cars.length} vehículo(s), ${DB.fuel.length} carga(s) de combustible, ${DB.expenses.length} gasto(s), ${DB.maint.length} ítem(s) de mantenimiento`;
+  const stats = `${DB.cars.length} vehículo(s), ${DB.fuel.length} carga(s) de combustible, ${DB.expenses.length} gasto(s), ${DB.maint.length} ítem(s) de mantenimiento, ${DB.tires.length} neumático(s)`;
   el.innerHTML = `
     <div class="section-title"><h2>Copia de seguridad</h2></div>
     <div class="card">
