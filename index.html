@@ -1513,6 +1513,40 @@ function renderAll(){
 }
 renderAll();
 
+/* ============== DAILY AUTO-BACKUP ============== */
+(function(){
+  const BACKUP_KEY = 'autogestor_last_backup';
+  const today = todayStr();
+  const last = localStorage.getItem(BACKUP_KEY);
+  if(last === today) return; // already backed up today
+  if(DB.cars.length === 0) return; // nothing to back up
+
+  let fired = false;
+  function doBackup(){
+    if(fired) return;
+    fired = true;
+    const blob = new Blob([JSON.stringify(DB, null, 2)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `autogestor_backup_${today}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    localStorage.setItem(BACKUP_KEY, today);
+    toast('💾 Copia de seguridad automática descargada');
+  }
+
+  // Fire on first user interaction — required by mobile Chrome to allow downloads
+  const EVENTS = ['pointerdown','click','keydown','touchstart'];
+  function onInteraction(){
+    EVENTS.forEach(ev => document.removeEventListener(ev, onInteraction, {capture:true}));
+    doBackup();
+  }
+  EVENTS.forEach(ev => document.addEventListener(ev, onInteraction, {capture:true, once:true}));
+})();
+
 if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{
     navigator.serviceWorker.register('sw.js').catch(()=>{});
