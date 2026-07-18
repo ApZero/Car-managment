@@ -500,10 +500,10 @@ function monthsBetween(d1,d2){
   return Math.max(0,(b.getFullYear()-a.getFullYear())*12 + (b.getMonth()-a.getMonth()) + (b.getDate()>=a.getDate()?0:-1));
 }
 function odometerHTML(value, decimals=0){
-  const str = (Number(value)||0).toFixed(decimals);
+  const formatted = numFmt(Number(value)||0, decimals); // uses es-PY dots as thousand sep
   let html = '';
-  for(const ch of str){
-    if(ch===','||ch==='.'){ html += `<div class="odo-digit sep">${ch===','?',':'.'}</div>`; }
+  for(const ch of formatted){
+    if(ch==='.'||ch===','){ html += `<div class="odo-digit sep">${ch}</div>`; }
     else { html += `<div class="odo-digit">${ch}</div>`; }
   }
   return html;
@@ -1467,17 +1467,97 @@ function addStandardPlan(carId){
 }
 
 /* ============== RENDER: TIRES ============== */
-const TIRE_POSITIONS = ['Delantera izquierda','Delantera derecha','Trasera izquierda','Trasera derecha','Repuesto','Sin asignar'];
-function tiresByCar(carId){ return DB.tires.filter(t=>t.carId===carId); }
-function tireKmRecorridos(t){
-  if(t.kmInstalled==null) return null;
-  const end = t.status==='retirado' ? t.kmRetired : carCurrentKm(t.carId);
-  if(end==null) return null;
-  return Math.max(0, end - t.kmInstalled);
+const TIRE_DRIVE_POSITIONS = ['Delantera izquierda','Delantera derecha','Trasera izquierda','Trasera derecha'];
+const EVENT_TYPES = [
+  {key:'instalado',     label:'Instalado en posición de conducción', hasPos:true,  active:true},
+  {key:'movido',        label:'Movido a otra posición',               hasPos:true,  active:true},
+  {key:'repuesto',      label:'Guardado como repuesto',               hasPos:false, active:false},
+  {key:'retirado_temp', label:'Retirado temporalmente',               hasPos:false, active:false},
+  {key:'retirado',      label:'Retirado definitivamente',             hasPos:false, active:false},
+];
+function eventTypeMeta(key){ return EVENT_TYPES.find(e=>e.key===key)||{label:key,hasPos:false,active:false}; }
+
+// ── Migration: convert old flat-field tires to event-history format ──────────
+function migrateTires(){
+  let changed = false;
+  DB.tires = DB.tires.map(t=>{
+    if(Array.isArray(t.events)) return t; // already new format
+    const events = [];
+    if(t.kmInstalled!=null || t.purchaseDate || t.position){
+      events.push({id:uid(), date:t.purchaseDate||todayStr(), km:t.kmInstalled??null,
+        type:'instalado', position:t.position||'Delantera izquierda'});
+    }
+    if(t.status==='retirado'){
+      events.push({id:uid(), date:t.dateRetired||todayStr(), km:t.kmRetired??null,
+        type:'retirado', position:null});
+    }
+    changed = true;
+    return {id:t.id, carId:t.carId, brand:t.brand||'', model:t.model||'',
+      size:t.size||'', cost:t.cost||0, purchaseDate:t.purchaseDate||null,
+      notes:t.notes||'', events};
+  });
+  if(changed) saveDB();
 }
+
+function tiresByCar(carId){ return DB.tires.filter(t=>t.carId===carId); }
+
+// Sort events by date asc, then km asc as tiebreaker
+function tireEventsSorted(t){
+  return (t.events||[]).slice().sort((a,b)=>{
+    if((a.date||'') !== (b.date||'')) return (a.date||'') < (b.date||'') ? -1 : 1;
+    return (a.km||0) - (b.km||0);
+  });
+}
+
+function tireCurrentState(t){
+  const evs = tireEventsSorted(t);
+  return evs.length ? evs[evs.length-1] : null;
+}
+
+function tireStatusBadge(state){
+  if(!state) return {label:'Sin eventos', cls:'', style:'background:color-mix(in srgb,var(--text-dim) 15%,transparent);color:var(--text-dim)'};
+  const map = {
+    instalado:     {label:'En uso', cls:'status-ok', style:''},
+    movido:        {label:'En uso', cls:'status-ok', style:''},
+    repuesto:      {label:'Repuesto', cls:'status-soon', style:''},
+    retirado_temp: {label:'Retirado temp.', cls:'', style:'background:color-mix(in srgb,var(--text-dim) 15%,transparent);color:var(--text-dim)'},
+    retirado:      {label:'Retirado', cls:'', style:'background:color-mix(in srgb,var(--text-dim) 15%,transparent);color:var(--text-dim)'},
+  };
+  return map[state.type] || {label:state.type, cls:'', style:''};
+}
+
+// Calculate only km accumulated while tire was in an active driving position
+function tireKmActivos(t){
+  const ACTIVE = new Set(['instalado','movido']);
+  const evs = tireEventsSorted(t).filter(e=>e.km!=null);
+  let total = 0, activeFromKm = null;
+  for(const ev of evs){
+    if(ACTIVE.has(ev.type)){
+      if(activeFromKm===null) activeFromKm = ev.km;
+      // If already active and moved, don't reset — keep accumulating from original install
+    } else {
+      if(activeFromKm!==null){
+        total += Math.max(0, ev.km - activeFromKm);
+        activeFromKm = null;
+      }
+    }
+  }
+  // Still active today → add up to current car km
+  if(activeFromKm!==null){
+    const curKm = carCurrentKm(t.carId);
+    if(curKm > activeFromKm) total += curKm - activeFromKm;
+  }
+  return total > 0 ? total : (activeFromKm!=null ? 0 : null);
+}
+
 function renderTires(carId){
+  migrateTires();
   const el = document.getElementById('maintSubContent');
-  let tires = tiresByCar(carId).sort((a,b)=> (a.status==='activo'?0:1) - (b.status==='activo'?0:1));
+  let tires = tiresByCar(carId).sort((a,b)=>{
+    const sa = tireCurrentState(a), sb = tireCurrentState(b);
+    const order = {instalado:0, movido:0, repuesto:1, retirado_temp:2, retirado:3};
+    return (order[sa?.type]??3) - (order[sb?.type]??3);
+  });
   let html = `
     <div class="fab-row">
       <button class="btn btn-primary btn-block" onclick="openTireForm(null,'${carId}')">+ Agregar neumático</button>
@@ -1487,24 +1567,42 @@ function renderTires(carId){
     html += `<div class="empty">Todavía no agregaste neumáticos para este vehículo.</div>`;
   } else {
     tires.forEach(t=>{
-      const km = tireKmRecorridos(t);
+      const state = tireCurrentState(t);
+      const badge = tireStatusBadge(state);
+      const kmAct = tireKmActivos(t);
+      const evs = tireEventsSorted(t);
+      const evHtml = evs.map(ev=>{
+        const meta = eventTypeMeta(ev.type);
+        const pos = (meta.hasPos && ev.position) ? ` · ${escapeHtml(ev.position)}` : '';
+        const km = ev.km!=null ? ` · ${fmtKm(ev.km)}` : '';
+        return `<div style="display:flex;gap:8px;padding:5px 0;border-bottom:1px solid var(--line);font-size:12.5px;align-items:center">
+          <span style="color:var(--text-dim);min-width:80px;flex:0 0 auto">${fmtDate(ev.date)}</span>
+          <span style="flex:1;color:var(--text)">${escapeHtml(meta.label)}${pos}${km}</span>
+          <button onclick="deleteTireEvent('${t.id}','${ev.id}')" style="background:none;border:none;color:var(--text-dim);font-size:14px;padding:0 4px;line-height:1" title="Eliminar">×</button>
+        </div>`;
+      }).join('');
       html += `
       <div class="entity">
         <div class="entity-head">
-          <div>
-            <div class="name" style="font-size:15px">${escapeHtml(t.brand||'')} ${escapeHtml(t.model||'')}</div>
-            <div class="sub">${escapeHtml(t.size||'sin medida')} ${t.purchaseDate?'· comprado '+fmtDate(t.purchaseDate):''}</div>
+          <div style="flex:1;min-width:0">
+            <div class="name" style="font-size:15px">${escapeHtml(t.brand||'Sin marca')} ${escapeHtml(t.model||'')}</div>
+            <div class="sub">${escapeHtml(t.size||'sin medida')}${state?.position&&(state.type==='instalado'||state.type==='movido')?' · '+escapeHtml(state.position):''}${t.purchaseDate?' · comprado '+fmtDate(t.purchaseDate):''}</div>
           </div>
-          <span class="status-badge ${t.status==='activo'?'status-ok':''}" style="${t.status!=='activo'?'background:rgba(154,160,172,0.15);color:var(--text-dim)':''}">${t.status==='activo'?'Activo':'Retirado'}</span>
+          <span class="status-badge ${badge.cls}" style="flex:0 0 auto;${badge.style}">${badge.label}</span>
         </div>
-        <div class="entity-stats">
-          <div><span class="tire-pos-badge">${escapeHtml(t.position||'Sin asignar')}</span></div>
-          <div>Km recorridos<br><span class="v">${km!=null?fmtKm(km):'—'}</span></div>
+        <div class="entity-stats" style="margin-top:10px">
+          <div>Km activos<br><span class="v">${kmAct!=null?fmtKm(kmAct):'—'}</span></div>
           <div>Costo<br><span class="v">${t.cost?fmtGs(t.cost):'—'}</span></div>
+          ${t.notes?`<div style="grid-column:span 2;font-size:12px;color:var(--text-dim);font-style:italic">${escapeHtml(t.notes)}</div>`:''}
         </div>
-        ${t.status==='retirado'?`<div class="help-text" style="margin:8px 0 0">Retirado ${t.dateRetired?'el '+fmtDate(t.dateRetired):''} ${t.kmRetired!=null?'a los '+fmtKm(t.kmRetired):''}${t.notes?' · '+escapeHtml(t.notes):''}</div>`:(t.notes?`<div class="help-text" style="margin:8px 0 0">${escapeHtml(t.notes)}</div>`:'')}
-        <div style="display:flex;gap:6px;margin-top:10px">
-          <button class="btn btn-ghost btn-sm" onclick="openTireForm('${t.id}','${carId}')">Editar</button>
+        ${evs.length?`
+        <div style="margin-top:12px">
+          <div style="font-size:10.5px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.06em;font-weight:600;margin-bottom:4px">Historial</div>
+          ${evHtml}
+        </div>`:''}
+        <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+          <button class="btn btn-primary btn-sm" onclick="openTireEventForm('${t.id}')">+ Movimiento</button>
+          <button class="btn btn-ghost btn-sm" onclick="openTireForm('${t.id}','${carId}')">Editar datos</button>
           <button class="btn btn-danger btn-sm" onclick="deleteTire('${t.id}')">Eliminar</button>
         </div>
       </div>`;
@@ -1512,67 +1610,141 @@ function renderTires(carId){
   }
   el.innerHTML = html;
 }
+
 function openTireForm(tireId, carId){
   const t = tireId ? DB.tires.find(x=>x.id===tireId) : null;
-  const isRetired = t?.status==='retirado';
+  const isNew = !t;
+  const firstEv = isNew ? null : tireEventsSorted(t)[0];
   const html = `
     <div class="modal">
       <div class="modal-head"><h3>${t?'Editar neumático':'Nuevo neumático'}</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
-      <input type="hidden" id="f-carId" value="${carId}">
+      <input type="hidden" id="f-carId" value="${carId||t?.carId}">
       <div class="field-row">
-        <div class="field"><label>Marca</label><input id="f-brand" value="${escapeHtml(t?.brand||'')}" placeholder="Ej: Bridgestone"></div>
-        <div class="field"><label>Modelo</label><input id="f-model" value="${escapeHtml(t?.model||'')}" placeholder="Ej: Dueler"></div>
+        <div class="field"><label>Marca</label><input id="f-brand" value="${escapeHtml(t?.brand||'')}" placeholder="Bridgestone"></div>
+        <div class="field"><label>Modelo</label><input id="f-model" value="${escapeHtml(t?.model||'')}" placeholder="Dueler"></div>
       </div>
       <div class="field-row">
-        <div class="field"><label>Medida</label><input id="f-size" value="${escapeHtml(t?.size||'')}" placeholder="Ej: 265/65 R17"></div>
-        <div class="field"><label>Posición</label>
-          <select id="f-position">${TIRE_POSITIONS.map(p=>`<option ${t?.position===p?'selected':''}>${p}</option>`).join('')}</select>
-        </div>
-      </div>
-      <div class="field-row">
-        <div class="field"><label>Fecha de compra</label><input id="f-purchaseDate" type="date" value="${t?.purchaseDate||todayStr()}"></div>
+        <div class="field"><label>Medida</label><input id="f-size" value="${escapeHtml(t?.size||'')}" placeholder="265/65 R17"></div>
         <div class="field"><label>Costo (Gs.)</label><input id="f-cost" type="number" value="${t?.cost??''}"></div>
       </div>
-      <div class="field"><label>Kilometraje al instalar (opcional)</label><input id="f-kmInstalled" type="number" value="${t?.kmInstalled??''}"></div>
-      <div class="checkbox-field"><input type="checkbox" id="f-retired" ${isRetired?'checked':''} onchange="document.getElementById('retiredFields').style.display=this.checked?'block':'none'"><label for="f-retired">Este neumático ya fue retirado</label></div>
-      <div id="retiredFields" style="display:${isRetired?'block':'none'}">
-        <div class="field-row">
-          <div class="field"><label>Fecha de retiro</label><input id="f-dateRetired" type="date" value="${t?.dateRetired||''}"></div>
-          <div class="field"><label>Km al retirar</label><input id="f-kmRetired" type="number" value="${t?.kmRetired??''}"></div>
-        </div>
+      <div class="field"><label>Fecha de compra</label><input id="f-purchaseDate" type="date" value="${t?.purchaseDate||todayStr()}"></div>
+      <div class="field"><label>Notas (desgaste, tipo, etc.)</label><textarea id="f-notes" rows="2">${escapeHtml(t?.notes||'')}</textarea></div>
+      ${isNew?`
+      <div class="divider"></div>
+      <div style="font-size:12px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.06em;font-weight:600;margin-bottom:10px">Primer evento</div>
+      <div class="field"><label>Estado inicial</label>
+        <select id="f-initType" onchange="toggleInitPos()">
+          <option value="instalado">Instalado en posición de conducción</option>
+          <option value="repuesto">Guardado como repuesto</option>
+          <option value="retirado_temp">Retirado temporalmente</option>
+        </select>
       </div>
-      <div class="field"><label>Notas (desgaste, motivo de cambio, etc.)</label><textarea id="f-notes" rows="2">${escapeHtml(t?.notes||'')}</textarea></div>
-      <div style="display:flex;gap:8px">
+      <div id="f-initPosWrap" class="field"><label>Posición</label>
+        <select id="f-initPos">${TIRE_DRIVE_POSITIONS.map(p=>`<option>${p}</option>`).join('')}</select>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Fecha del evento</label><input id="f-initDate" type="date" value="${todayStr()}"></div>
+        <div class="field"><label>Km al instalar (opcional)</label><input id="f-initKm" type="number" placeholder="Ej: 45000"></div>
+      </div>`:''}
+      <div style="display:flex;gap:8px;margin-top:4px">
         <button class="btn btn-primary btn-block" onclick="saveTire('${tireId||''}')">Guardar</button>
         ${t?`<button class="btn btn-danger" onclick="deleteTire('${tireId}')">Eliminar</button>`:''}
       </div>
     </div>`;
   openModal(html);
+  if(isNew) toggleInitPos();
+}
+function toggleInitPos(){
+  const type = document.getElementById('f-initType')?.value;
+  const wrap = document.getElementById('f-initPosWrap');
+  if(wrap) wrap.style.display = (type==='instalado') ? 'block':'none';
 }
 function saveTire(tireId){
-  const retired = document.getElementById('f-retired').checked;
+  const isNew = !tireId;
   const data = {
     carId: document.getElementById('f-carId').value,
     brand: document.getElementById('f-brand').value.trim(),
     model: document.getElementById('f-model').value.trim(),
     size: document.getElementById('f-size').value.trim(),
-    position: document.getElementById('f-position').value,
-    purchaseDate: document.getElementById('f-purchaseDate').value || null,
     cost: Number(document.getElementById('f-cost').value)||0,
-    kmInstalled: document.getElementById('f-kmInstalled').value==='' ? null : Number(document.getElementById('f-kmInstalled').value),
-    status: retired ? 'retirado' : 'activo',
-    dateRetired: retired ? (document.getElementById('f-dateRetired').value||null) : null,
-    kmRetired: retired ? (document.getElementById('f-kmRetired').value==='' ? null : Number(document.getElementById('f-kmRetired').value)) : null,
+    purchaseDate: document.getElementById('f-purchaseDate').value||null,
     notes: document.getElementById('f-notes').value.trim(),
   };
-  if(tireId){ Object.assign(DB.tires.find(x=>x.id===tireId), data); }
-  else { DB.tires.push(Object.assign({id:uid()}, data)); }
+  if(isNew){
+    const initType = document.getElementById('f-initType').value;
+    const initPos = document.getElementById('f-initPos')?.value||null;
+    const initDate = document.getElementById('f-initDate').value||todayStr();
+    const initKmRaw = document.getElementById('f-initKm').value;
+    const initKm = initKmRaw==='' ? null : Number(initKmRaw);
+    data.events = [{
+      id:uid(), date:initDate, km:initKm, type:initType,
+      position: initType==='instalado' ? initPos : null
+    }];
+    DB.tires.push(Object.assign({id:uid()}, data));
+  } else {
+    const t = DB.tires.find(x=>x.id===tireId);
+    Object.assign(t, data);
+  }
   saveDB(); closeModal(); toast('Neumático guardado'); renderAll();
+}
+
+function openTireEventForm(tireId){
+  const t = DB.tires.find(x=>x.id===tireId);
+  const html = `
+    <div class="modal">
+      <div class="modal-head"><h3>Agregar movimiento</h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
+      <p class="help-text" style="margin-bottom:10px">${escapeHtml(t.brand||'')} ${escapeHtml(t.model||'')} ${t.size?'· '+escapeHtml(t.size):''}</p>
+      <div class="field"><label>Tipo de movimiento</label>
+        <select id="f-evType" onchange="toggleEvPos()">
+          ${EVENT_TYPES.map(e=>`<option value="${e.key}">${escapeHtml(e.label)}</option>`).join('')}
+        </select>
+      </div>
+      <div id="f-evPosWrap" class="field"><label>Nueva posición</label>
+        <select id="f-evPos">${TIRE_DRIVE_POSITIONS.map(p=>`<option>${p}</option>`).join('')}</select>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Fecha</label><input id="f-evDate" type="date" value="${todayStr()}"></div>
+        <div class="field"><label>Km del auto (opcional)</label><input id="f-evKm" type="number" placeholder="Ej: 60000"></div>
+      </div>
+      <button class="btn btn-primary btn-block" onclick="saveTireEvent('${tireId}')">Guardar movimiento</button>
+    </div>`;
+  openModal(html);
+  toggleEvPos();
+}
+function toggleEvPos(){
+  const type = document.getElementById('f-evType')?.value;
+  const meta = eventTypeMeta(type);
+  const wrap = document.getElementById('f-evPosWrap');
+  if(wrap) wrap.style.display = meta.hasPos ? 'block':'none';
+}
+function saveTireEvent(tireId){
+  const t = DB.tires.find(x=>x.id===tireId);
+  if(!t) return;
+  const type = document.getElementById('f-evType').value;
+  const meta = eventTypeMeta(type);
+  const kmRaw = document.getElementById('f-evKm').value;
+  const ev = {
+    id: uid(),
+    date: document.getElementById('f-evDate').value || todayStr(),
+    km: kmRaw==='' ? null : Number(kmRaw),
+    type,
+    position: meta.hasPos ? document.getElementById('f-evPos').value : null,
+  };
+  if(!Array.isArray(t.events)) t.events = [];
+  t.events.push(ev);
+  saveDB(); closeModal(); toast('Movimiento guardado'); renderAll();
+}
+function deleteTireEvent(tireId, eventId){
+  const t = DB.tires.find(x=>x.id===tireId);
+  if(!t) return;
+  t.events = (t.events||[]).filter(e=>e.id!==eventId);
+  saveDB(); toast('Movimiento eliminado'); renderAll();
 }
 function deleteTire(tireId){
   DB.tires = DB.tires.filter(t=>t.id!==tireId);
   saveDB(); closeModal(); toast('Neumático eliminado'); renderAll();
 }
+
 
 function noCarMsg(){
   return `<div class="card"><h3>Sin vehículos</h3><p class="help-text">Agregá primero un vehículo en la pestaña "Autos".</p><button class="btn btn-primary btn-block" onclick="goSection('cars')">Ir a Autos</button></div>`;
