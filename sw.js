@@ -1,4 +1,4 @@
-const CACHE_NAME = 'autogestor-v6';
+const CACHE_NAME = 'autogestor-v7';
 const ASSETS = [
   './',
   './index.html',
