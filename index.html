@@ -32,9 +32,9 @@
   --bg-nav:#EDE8DC;
   --nav-border:#DDD5C2;
   --odo-bg:#F5F0E8;
-  --odo-border:#4A3828;
-  --odo-text:#C25D3B;
-  --odo-glow:rgba(194,93,59,0.45);
+  --odo-border:#DDD5C2;
+  --odo-text:#B85C38;
+  --odo-glow:rgba(184,92,56,0.18);
   --toast-bg:#2A1F13;
   --toast-text:#F5F0E8;
   --mark-1:#D4895A;
@@ -404,11 +404,13 @@ canvas{width:100%;display:block;}
 .vtype-badge {font-size:10px;padding:2px 7px;border-radius:5px;font-weight:700;text-transform:uppercase;}
 /* Vehicle switcher in header */
 .vswitcher{
-  margin-left:auto;flex:0 0 auto;
-  display:flex;align-items:center;gap:5px;
+  flex:0 0 auto;
+  display:flex;align-items:center;gap:4px;
   background:var(--panel-2);border:1px solid var(--line);
-  border-radius:8px;padding:6px 10px;font-size:13px;font-weight:600;color:var(--text);
+  border-radius:8px;padding:5px 9px;font-size:12px;font-weight:600;color:var(--text);
+  max-width:42vw;overflow:hidden;
 }
+.vswitcher span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .vswitcher svg{width:13px;height:13px;stroke:var(--text-dim);}
 /* Place quick-tap pill */
 .place-pill{
@@ -426,15 +428,15 @@ canvas{width:100%;display:block;}
 <header class="top">
   <div class="brand">
     <div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="var(--mark-icon)" stroke-width="2"><path d="M3 13l1.5-5A2 2 0 0 1 6.4 7h11.2a2 2 0 0 1 1.9 1.4L21 13M5 13h14a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1z"/><circle cx="7" cy="18" r="1.4" fill="var(--mark-icon)"/><circle cx="17" cy="18" r="1.4" fill="var(--mark-icon)"/></svg></div>
-    <div>
+    <div style="flex:1;min-width:0">
       <h1>Autogestor</h1>
       <div class="sub">Gestión y costos vehiculares</div>
     </div>
+    <button class="vswitcher" id="vehicleSwitcher" onclick="openVehiclePicker()">
+      <span id="vsLabel">— Sin vehículo —</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+    </button>
   </div>
-  <button class="vswitcher" id="vehicleSwitcher" onclick="openVehiclePicker()">
-    <span id="vsLabel">— Sin vehículo —</span>
-    <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
-  </button>
 </header>
 
 <main>
@@ -494,7 +496,22 @@ const DEFAULT_CATEGORIES = ['Mantenimiento','Repuesto','Accesorio','Seguro','Imp
 let DB = loadDB();
 let currentVehicleId = null; // currently selected vehicle id
 let activeSection = 'dashboard';
-const VEHICLE_ID_KEY = 'autogestor_vehicle';
+const VEHICLE_ID_KEY   = 'autogestor_vehicle';
+const COST_INC_KEY     = 'autogestor_cost_inc_purchase';
+const DASH_ANUAL_KEY   = 'autogestor_dash_anual';
+let costIncludesPurchase = localStorage.getItem(COST_INC_KEY) === 'true';
+let dashShowAnual        = localStorage.getItem(DASH_ANUAL_KEY) === 'true';
+
+function setCostToggle(val){
+  costIncludesPurchase = val;
+  localStorage.setItem(COST_INC_KEY, val);
+  renderDashboard();
+}
+function toggleDashAnual(){
+  dashShowAnual = !dashShowAnual;
+  localStorage.setItem(DASH_ANUAL_KEY, dashShowAnual);
+  renderDashboard();
+}
 
 function defaultDB(){ return { cars: [], fuel: [], expenses: [], maint: [], tires: [], trips: [], places: [], categories: [...DEFAULT_CATEGORIES] }; }
 function loadDB(){
@@ -837,12 +854,17 @@ function renderDashboard(){
     return;
   }
 
-  const totalCost = carIds.reduce((s,id)=>s+carTotalCost(id),0);
-  const totalOperating = carIds.reduce((s,id)=>s+carOperatingCost(id),0);
-  const totalDist = carIds.reduce((s,id)=>s+carDistanceTraveled(id),0);
-  const costPerKm = totalDist>0 ? totalOperating/totalDist : 0;
+  const totalCost     = carIds.reduce((s,id)=>s+carTotalCost(id),0);
+  const totalOperating= carIds.reduce((s,id)=>s+carOperatingCost(id),0);
+  const totalDist     = carIds.reduce((s,id)=>s+carDistanceTraveled(id),0);
+  // Cost per km: respects the purchase-price toggle
+  const costBase  = costIncludesPurchase ? totalCost : totalOperating;
+  const costPerKm = totalDist>0 ? costBase/totalDist : 0;
+  // Monthly / annual: always uses total cost (purchase + operating) / months owned
   const monthlyAvg = carIds.reduce((s,id)=>s+carMonthlyAvg(id),0);
-  const annualAvg = monthlyAvg*12;
+  const annualAvg  = monthlyAvg*12;
+  // Km actual (for auto/moto single-vehicle view)
+  const kmActual = filterCars.length===1 ? carCurrentKm(filterCars[0].id) : null;
 
   // fuel efficiency (only meaningful per-car when single car selected)
   let effHtml = '—';
@@ -912,13 +934,27 @@ function renderDashboard(){
         ${heroCarImg}
       </div>
     </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+      <span style="font-size:11.5px;color:var(--text-dim)">Costo/km incluye precio de compra:</span>
+      <button onclick="setCostToggle(${!costIncludesPurchase})"
+        style="font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:6px;border:none;cursor:pointer;
+               background:${costIncludesPurchase?'color-mix(in srgb,var(--accent) 18%,transparent)':'var(--panel-2)'};
+               color:${costIncludesPurchase?'var(--accent)':'var(--text-dim)'};
+               border:1px solid ${costIncludesPurchase?'var(--accent-dim)':'var(--line)'}">
+        ${costIncludesPurchase?'Sí':'No'}
+      </button>
+    </div>
     <div class="stat-grid">
-      <div class="stat"><div class="label">Costo por km (total)</div><div class="value cool">${fmtGs(costPerKm)}</div></div>
-      <div class="stat"><div class="label">Promedio mensual</div><div class="value">${fmtGs(monthlyAvg)}</div></div>
-      <div class="stat"><div class="label">Estimado anual</div><div class="value">${fmtGs(annualAvg)}</div></div>
+      <div class="stat"><div class="label">Costo / km${costIncludesPurchase?' (con compra)':' (solo gastos)'}</div><div class="value cool">${fmtGs(costPerKm)}</div></div>
+      <div class="stat" onclick="toggleDashAnual()" style="cursor:pointer;user-select:none" title="Tap para cambiar">
+        <div class="label">${dashShowAnual?'Estimado anual':'Promedio mensual'} <span style="font-size:9px;opacity:0.6">⇄</span></div>
+        <div class="value">${fmtGs(dashShowAnual?annualAvg:monthlyAvg)}</div>
+      </div>
       ${filterCars.length===1&&vehicleType(filterCars[0].id)==='bici'
-        ? `<div class="stat"><div class="label">Viajes registrados</div><div class="value cool">${DB.trips.filter(t=>t.carId===filterCars[0].id).length}</div></div>`
-        : `<div class="stat"><div class="label">Rendimiento</div><div class="value cool">${effHtml}</div></div>`}
+        ? `<div class="stat"><div class="label">Km totales (bici)</div><div class="value">${fmtKm(kmActual||0)}</div></div>
+           <div class="stat"><div class="label">Viajes registrados</div><div class="value cool">${DB.trips.filter(t=>t.carId===filterCars[0].id).length}</div></div>`
+        : `<div class="stat"><div class="label">Km actual</div><div class="value">${kmActual!=null?fmtKm(kmActual):'—'}</div></div>
+           <div class="stat"><div class="label">Rendimiento</div><div class="value cool">${effHtml}</div></div>`}
     </div>
     <div class="card">
       <h3>Gastos mensuales (12 meses)</h3>
